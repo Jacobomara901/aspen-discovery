@@ -67,6 +67,48 @@
 				{/if}
 			{/if}
 		{/foreach}
+		{if $smarty.server.SERVER_NAME|strstr:'west.aspen'|| $smarty.server.SERVER_NAME|strstr:'east.aspen'}
+				<select name="libraries" id="libraries">
+				<option id='libdefault' value="" selected disabled hidden>Choose a home Library</option>
+				<option id='ac-demo' value="ac-demo">> Bath</option>
+				<option id='west' value="west">> Bridgewater</option>
+				<option id='east' value="east">> Charmouth</option>
+				<option id='def-ac-demo' value="def-ac-demo" disabled hidden>Current Home Library: Bath</option>
+				<option id='def-west' value="def-west" disabled hidden>Current Home Library: Bridgewater</option>
+				<option id='def-east' value="def-east" disabled hidden>Current Home Library: Charmouth</option>
+				</select> 
+		<script>
+		console.log(test)
+		// Bath
+		if (window.location.href.includes('https://academic-demo.aspendiscovery.co.uk/')){
+			$("#libraries").val('def-ac-demo');
+		// Bridgewater
+		} else if (window.location.href.includes('https://west.aspendiscovery.co.uk/')){
+			$("#libraries").val('def-west');
+	 	// Charmouth
+		} else if (window.location.href.includes('https://east.aspendiscovery.co.uk/')){
+			$("#libraries").val('def-east');
+		} else {
+			$('#libraries').on('change', function() {
+			// Bath
+				if ( this.value == 'ac-demo')
+				{
+					window.location.href = 'https://academic-demo.aspendiscovery.co.uk/';
+				}
+			// Bridgewater
+				else if ( this.value == 'west')
+				{
+					window.location.href = 'https://west.aspendiscovery.co.uk/';
+				}
+			// Charmouth
+				else if ( this.value == 'east')
+				{
+					window.location.href = 'https://east.aspendiscovery.co.uk/';
+				}
+			});
+		}
+		</script>
+		{/if}
 	</div>
 	<div class="menu-section menu-section-right">
 		{if !empty($loggedIn)}{* Logged In *}
