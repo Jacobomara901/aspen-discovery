@@ -340,6 +340,9 @@ class Library extends DataObject {
 	public $edsSettingsId;
 	public $ebscohostSearchSettingId;
 
+	//Summon Settings
+	public $summonSettingsId;
+
 	//SSO
 	public /** @noinspection PhpUnused */
 		$ssoName;
@@ -703,6 +706,16 @@ class Library extends DataObject {
 		$edsSettings[-1] = 'none';
 		while ($edsSetting->fetch()) {
 			$edsSettings[$edsSetting->id] = $edsSetting->name;
+		}
+
+		require_once ROOT_DIR . '/sys/Summon/SummonSettings.php';
+		$summonSetting = new SummonSettings();
+		$summonSetting->orderBy('name');
+		$summonSettings = [];
+		$summonSetting->find();
+		$summonSettings[-1] = 'none';
+		while ($summonSetting->fetch()) {
+			$summonSettings[$summonSetting->id] = $summonSetting->name;
 		}
 
 
@@ -3540,6 +3553,26 @@ class Library extends DataObject {
 				],
 			],
 
+			'summonSection' => [
+				'property' => 'summonSection',
+				'type' => 'section',
+				'label' => 'Summon',
+				'hideInLists' => true,
+				'renderAsHeading' => true,
+				'permissions' => ['Library Summon Options'],
+				'properties' => [
+					'edsSettingsId' => [
+						'property' => 'summonSettingsId',
+						'type' => 'enum',
+						'values' => $summonSettings,
+						'label' => 'Summon Settings',
+						'description' => 'The Summon Settings to use for connection',
+						'hideInLists' => true,
+						'default' => -1,
+					],
+				],
+			],
+
 			'casSection' => [
 				'property' => 'casSection',
 				'type' => 'section',
@@ -3756,6 +3789,9 @@ class Library extends DataObject {
 		global $enabledModules;
 		if (!array_key_exists('EBSCO EDS', $enabledModules)) {
 			unset($structure['edsSection']);
+		}
+		if (!array_key_exists('Summon', $enabledModules)) {
+			unset($structure['summonSection']);
 		}
 		if (!array_key_exists('Genealogy', $enabledModules)) {
 			unset($structure['genealogySection']);
