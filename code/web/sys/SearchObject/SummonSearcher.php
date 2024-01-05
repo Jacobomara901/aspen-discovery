@@ -748,5 +748,4 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 			curl_close($this->curl_connection);
 		}
 	}
-
 }
