@@ -1,5 +1,6 @@
 <?php
 
+require_once ROOT_DIR . '/sys/SearchObject/BuildQuery.php';
 require_once ROOT_DIR . '/sys/Summon/SummonSettings.php';
 require_once ROOT_DIR . '/sys/Pager.php';
 require_once ROOT_DIR . '/sys/SearchObject/BaseSearcher.php';

@@ -83,7 +83,7 @@ class SummonRecordDriver extends RecordInterface {
 	}
 
 	public function getSearchResult($view = 'list', $showListsAppearingOn = true) {
-		if ($view == 'covers') { 
+		if ($view == 'covers') { // Displaying Results as bookcover tiles
 			return $this->getBrowseResult();
 		}
 
@@ -109,6 +109,7 @@ class SummonRecordDriver extends RecordInterface {
 		}
 
 		$interface->assign('summDescription', $this->getDescription());
+
 		$interface->assign('bookCoverUrl', $this->getBookcoverUrl('small'));
 		$interface->assign('bookCoverUrlMedium', $this->getBookcoverUrl('medium'));
 
@@ -172,6 +173,7 @@ class SummonRecordDriver extends RecordInterface {
 		$interface->assign('summSourceDatabase', $this->getSourceDatabase());
 		$interface->assign('summHasFullText', $this->hasFullText());
 		$interface->assign('summDescription', $this->getDescription());
+
 		$interface->assign('bookCoverUrl', $this->getBookcoverUrl('small'));
 		$interface->assign('bookCoverUrlMedium', $this->getBookcoverUrl('medium'));
 
@@ -189,12 +191,20 @@ class SummonRecordDriver extends RecordInterface {
 		$interface->assign('shortId', $this->getUniqueID());
 		$interface->assign('id', $this->getUniqueID());
 		$interface->assign('titleURL', $this->getLinkUrl());
+		$interface->assign('showRatings', $collectionSpotlight->showRatings);
 
 		if ($collectionSpotlight->coverSize == 'small') {
 			$imageUrl = $this->getBookcoverUrl('small');
 		} else {
 			$imageUrl = $this->getBookcoverUrl('medium');
 		}
+
+		$interface->assign('title', $this->getTitle());
+		$interface->assign('author', $this->getAuthor());
+		$interface->assign('description', $this->getDescription());
+		$interface->assign('shortId', $this->getUniqueID());
+		$interface->assign('id', $this->getUniqueID());
+		$interface->assign('titleURL', $this->getLinkUrl());
 		$interface->assign('imageUrl', $imageUrl);
 
 		if ($collectionSpotlight->showRatings) {
@@ -262,6 +272,13 @@ class SummonRecordDriver extends RecordInterface {
 	 * @return  string              Unique identifier.
 	 */
 
+	public function getUniqueID() {
+		if (isset($this->recordData)) {
+			return (string)$this->recordData->Header->DbId . ':' . (string)$this->recordData->Header->An;
+		}else{
+			return null;
+		}
+	}
 
 	public function getId() {
 		return $this->getUniqueID();
@@ -283,6 +300,12 @@ class SummonRecordDriver extends RecordInterface {
 		return false;
 	}
 
+	public function getFullText() {
+		$fullText = (string)$this->recordData->FullText->Text->Value;
+		$fullText = html_entity_decode($fullText);
+		$fullText = preg_replace('/<anid>.*?<\/anid>/', '', $fullText);
+		return $fullText;
+	}
 	/**
 	 * Does this record have reviews available?
 	 *
@@ -386,7 +409,7 @@ class SummonRecordDriver extends RecordInterface {
 			$authors[] = $primary;
 		}
 		//TODO: - Make get places of publication function
-		//$pubPlaces = $this->getPlacesOfPublication();
+
 		$details = [
 			'authors' => $authors,
 			'title' => $this->getTitle(),
