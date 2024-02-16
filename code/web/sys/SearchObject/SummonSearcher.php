@@ -697,6 +697,15 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 		}
 	}
 
+	public function getRecords($ids) {
+		$records = [];
+		require_once ROOT_DIR . '/RecordDrivers/SummonRecordDriver.php';
+		foreach ($ids as $index => $id) {
+			$records[$index] = new SummonRecordDriver($id);
+		}
+		return $records;
+	}
+
     public function getIndexError() {
 		// TODO: Implement getIndexError() method.
 	}
