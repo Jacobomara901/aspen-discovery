@@ -1566,6 +1566,8 @@ abstract class MarcRecordProcessor {
 				printFormats.add("Blu-ray");
 			}else if (titleMedium.contains("dvd")){
 				printFormats.add("DVD");
+			}else if (titleMedium.contains("erescource") || (titleMedium.contains("ELECTRONIC RESOURCES") || (titleMedium.contains("Electronic resources")))){
+				printFormats.add("eResource");
 			}
 
 		}
