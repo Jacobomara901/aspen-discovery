@@ -48,7 +48,6 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 	/**@var int */
 	protected $maxTopics = 1;
 	protected $groupFilters = array();
-	protected $rangeFilters = array();
 	protected $openAccessFilter = false;
 	protected $expand = false;
 	protected $sortOptions = array();
@@ -58,6 +57,7 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 	protected $defaultSort = 'relevance';
 	protected $query;
 	protected $filters = array();
+	protected $rangeFilters = array();
 
 	/**
 	 * @var int
@@ -90,7 +90,14 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 		'Language,or,1,30',
 		'DatabaseName,or,1,30',
 		'SourceType,or,1,30',	
+		'isPeerReviewed,and,1,30',
+		'isScholarly,and,1,30',
 	];
+
+	protected $rangeFacets = [
+		'PublicationDate,0000:9999',
+	];
+
 
 	protected $facetFields;
 
@@ -242,6 +249,8 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 			's.fvgf' => $this->groupFilters,
 			//Filters
 			's.rf' => $this->rangeFilters,
+			//Range Facets
+			's.rff' => $this->rangeFacets,
 			//Order results
 			's.sort' => $this->getSort(),
 			//False by default
@@ -275,7 +284,8 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 				$this->page = $recordData['query']['pageNumber'];
 				$this->resultsTotal = $recordData['recordCount'];
 				$this->filters = $recordData['query']['facetValueFilters'];
-				$this->facetFields= $recordData['facetFields'];	
+				$recordData['rangeFacetFields'] = isset($recordData['rangeFacetFields']) && is_array($recordData['rangeFacetFields']) ? $recordData['rangeFacetFields'] : [];
+				$this->facetFields = array_merge($recordData['facetFields'], $recordData['rangeFacetFields']);	
 			}
 		return $recordData;
 	}
@@ -434,6 +444,9 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 				//results array does not return human readable option
 				$parts = preg_split('/(?=[A-Z])/', $facetId, -1, PREG_SPLIT_NO_EMPTY);
 				$displayName = implode(' ', $parts);
+				if ($facetId == 'PublicationDate') {
+					$facetId = 'publishDate';
+				}
 				$availableFacets[$facetId] = [
 					'collapseByDefault' => true,
 					'multiSelect' =>true,
@@ -443,6 +456,11 @@ class SearchObject_SummonSearcher extends SearchObject_BaseSearcher{
 				if ($facetId == 'ContentType') {
 					$availableFacets[$facetId]['collapseByDefault'] = false;
 				}
+
+				if ($facetId == 'IsScholarly' || $facetId == 'IsPeerReviewed') {
+					$availableFacets[$facetId]['multiSelect'] = false;
+				}
+				
 				$list = [];
 				foreach ($facetField['counts'] as $value) {
 					$facetValue = $value['value'];
