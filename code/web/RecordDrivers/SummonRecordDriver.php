@@ -23,6 +23,31 @@ class SummonRecordDriver extends RecordInterface {
 		return true;
 	}
 
+	// public function getBookcoverUrl($size='large', $absolutePath = false) {
+	// 	global $configArray;
+	// 	if ($size == 'small' || $size == 'medium'){
+	// 		$sizeInArray = 'thumbnail_m';
+	// 	}else{
+	// 		$sizeInArray = 'thumbnail_l';
+	// 	}
+	// 	if (!empty($this->record[$sizeInArray][0])) {
+	// 		$imageDimensions = getimagesize($this->record[$sizeInArray][0]);
+	// 		if ($sizeInArray == 'thumbnail_m' && $imageDimensions[0] > 10) {
+	// 			return $this->record[$sizeInArray][0];
+	// 		} elseif ($sizeInArray == 'thumbnail_l' && $imageDimensions[0] > 10) {
+	// 			return $this->record[$sizeInArray][0];
+	// 		} 
+	// 	}
+	// 	if ($absolutePath) {
+	// 		$bookCoverUrl = $configArray['Site']['url'];
+	// 	} else {
+	// 		$bookCoverUrl = '';
+	// 	}
+	// 	$bookCoverUrl .= "/bookcover.php?id={$this->getUniqueID()}&size={$size}&type=summon";
+	// 	return $bookCoverUrl;
+	// }
+
+
 	public function getBookcoverUrl($size='large', $absolutePath = false) {
 		global $configArray;
 		if ($size == 'small' || $size == 'medium'){
@@ -31,10 +56,10 @@ class SummonRecordDriver extends RecordInterface {
 			$sizeInArray = 'thumbnail_l';
 		}
 		if (!empty($this->record[$sizeInArray][0])) {
-			$imageDimensions = getimagesize($this->record[$sizeInArray][0]);
-			if ($sizeInArray == 'thumbnail_m' && $imageDimensions[0] > 10) {
+			$imageFilesize = $this->getRemoteImageSize($this->record[$sizeInArray][0]);
+			if ($sizeInArray == 'thumbnail_m' && $imageFilesize > 500) {
 				return $this->record[$sizeInArray][0];
-			} elseif ($sizeInArray == 'thumbnail_l' && $imageDimensions[0] > 10) {
+			} elseif ($sizeInArray == 'thumbnail_l' && $imageFilesize > 500) {
 				return $this->record[$sizeInArray][0];
 			} 
 		}
@@ -46,6 +71,18 @@ class SummonRecordDriver extends RecordInterface {
 		$bookCoverUrl .= "/bookcover.php?id={$this->getUniqueID()}&size={$size}&type=summon";
 		return $bookCoverUrl;
 	}
+
+	function getRemoteImageSize($url) {
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_HEADER, 1);
+		curl_setopt($ch, CURLOPT_NOBODY, 1);
+		curl_exec($ch);
+		$size = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+		curl_close($ch);
+		return $size;
+	}
+
 
 	/**
 	 * @param bool $unscoped
