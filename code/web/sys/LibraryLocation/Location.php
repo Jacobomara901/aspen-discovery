@@ -1715,63 +1715,48 @@ class Location extends DataObject {
 			//If we are not in a library, then do not allow branch scoping, etc.
 			Location::$activeLocation = null;
 		} else {
-
 			//Check to see if a branch location has been specified.
 			$locationCode = $this->getBranchLocationCode();
 			if (!empty($locationCode) && $locationCode != 'all') {
 				$activeLocation = new Location();
 				$activeLocation->subLocation = $locationCode;
 				if ($activeLocation->find(true)) {
-					//Only use the location if we are in the subdomain for the parent library
+					// Only use the location if it belongs to the current library
 					if ($library->libraryId == $activeLocation->libraryId) {
 						Location::$activeLocation = clone $activeLocation;
 					} else {
-						// If the active location doesn't belong to the library we are browsing at, turn off the active location
 						Location::$activeLocation = null;
 					}
 				} else {
-					//Check to see if we can get the active location based off the subdomain
+					// Check location by code only, ignoring subdomain
 					$activeLocation = new Location();
-					$activeLocation->subdomain = $locationCode;
+					$activeLocation->code = $locationCode;
 					if ($activeLocation->find(true)) {
-						//Only use the location if we are in the subdomain for the parent library
 						if ($library->libraryId == $activeLocation->libraryId) {
 							Location::$activeLocation = clone $activeLocation;
 						} else {
-							// If the active location doesn't belong to the library we are browsing at, turn off the active location
 							Location::$activeLocation = null;
-						}
-					} else {
-						//Check to see if we can get the active location based off the location code
-						$activeLocation = new Location();
-						$activeLocation->code = $locationCode;
-						if ($activeLocation->find(true) && empty($activeLocation->subdomain)) {
-							//Only use the location if we are in the subdomain for the parent library
-							if ($library->libraryId == $activeLocation->libraryId) {
-								Location::$activeLocation = clone $activeLocation;
-							} else {
-								// If the active location doesn't belong to the library we are browsing at, turn off the active location
-								Location::$activeLocation = null;
-							}
 						}
 					}
 				}
 			} else {
-				// Check if we know physical location by the ip table
-				$physicalLocation = $this->getPhysicalLocation();
-				if ($physicalLocation != null) {
-					if ($library->libraryId == $physicalLocation->libraryId) {
-						Location::$activeLocation = $physicalLocation;
-					} else {
-						// If the physical location doesn't belong to the library we are browsing at, turn off the active location
-						Location::$activeLocation = null;
+				// Check if physical location detection is enabled
+				require_once ROOT_DIR . '/sys/SystemVariables.php';
+				$systemVariables = SystemVariables::getSystemVariables();
+				if ($systemVariables && $systemVariables->enablePhysicalLocationDetection) {
+					// Check if we know physical location by the ip table
+					$physicalLocation = $this->getPhysicalLocation();
+					if ($physicalLocation != null) {
+						if ($library->libraryId == $physicalLocation->libraryId) {
+							Location::$activeLocation = $physicalLocation;
+						} else {
+							// If the physical location doesn't belong to the library we are browsing at, turn off the active location
+							Location::$activeLocation = null;
+						}
 					}
 				}
 			}
-			global $timer;
-			$timer->logTime('Finished getActiveLocation');
 		}
-
 		return Location::$activeLocation;
 	}
 

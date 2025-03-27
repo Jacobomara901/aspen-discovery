@@ -38,6 +38,7 @@ class SystemVariables extends DataObject {
 	public $disableIpSpammyControl;
 	public $monitorAntivirus;
 	public $useOriginalCoverUrls;
+	public $enablePhysicalLocationDetection;
 
 
 	static function getObjectStructure($context = ''): array {
@@ -347,6 +348,13 @@ class SystemVariables extends DataObject {
 				'description' => 'Determine whether or not original cover URLs should be used.',
 				'note' => "After changing this setting, users should clear their browser's cache to ensure updated cover URLs take effect immediately. Existing cached covers may otherwise remain visible until the cache expires.",
 				'default' => false,
+			],
+			'enablePhysicalLocationDetection' => [
+				'property' => 'enablePhysicalLocationDetection',
+				'type' => 'checkbox',
+				'label' => 'Enable Physical Location Detection',
+				'description' => 'Whether to detect and use physical location for theme selection. When enabled (default), physical location detection is used for theme selection, which may cause theme conflicts when multiple libraries share the same subdomain. When disabled, theme selection is based on library ID, allowing libraries sharing the same subdomain to have different themes.',
+				'default' => true,
 			],
 		];
 

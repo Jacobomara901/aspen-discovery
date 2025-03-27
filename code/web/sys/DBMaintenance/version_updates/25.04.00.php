@@ -41,6 +41,14 @@ function getUpdates25_04_00(): array {
 		//Lucas Montoya - Theke Solutions
 
 		//other
+		'enable_physical_location_detection' => [
+			'title' => 'Enable Physical Location Detection',
+			'description' => 'Add option to enable/disable physical location detection for theme selection. When enabled (default), physical location detection is used for theme selection, which may cause theme conflicts when multiple libraries share the same subdomain. When disabled, theme selection is based on library ID, allowing libraries sharing the same subdomain to have different themes.',
+			'continueOnError' => false,
+			'sql' => [
+				'ALTER TABLE system_variables ADD COLUMN enablePhysicalLocationDetection tinyint(1) DEFAULT 1 AFTER disableIpSpammyControl'
+			]
+		], //enable_physical_location_detection
 
 	];
 }
