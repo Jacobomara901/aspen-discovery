@@ -10633,4 +10633,179 @@ class MyAccount_AJAX extends JSON_Action {
 				]) . "</button>",
 		];
 	}
+
+	/** @noinspection PhpUnused */
+	function getGenerateOAuthKeyForm(): array {
+		global $interface;
+
+		return [
+			'title' => translate([
+				'text' => 'Generate API Key',
+				'isPublicFacing' => true,
+			]),
+			'modalBody' => $interface->fetch("MyAccount/generateOAuthKeyForm.tpl"),
+			'modalButtons' => "<button type='button' class='tool btn btn-primary' onclick='AspenDiscovery.Account.generateOAuthKey(); return false;'>" . translate([
+				'text' => 'Generate',
+				'isPublicFacing' => true,
+			]) . "</button>",
+		];
+	}
+
+	/** @noinspection PhpUnused */
+	function generateOAuthKey(): array {
+		if (!UserAccount::isLoggedIn()) {
+			return [
+				'success' => false,
+				'message' => 'You must be logged in to generate OAuth keys',
+			];
+		}
+
+		require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+		if (!UserOAuthKey::isOAuthEnabled()) {
+			return [
+				'success' => false,
+				'message' => 'OAuth key generation is not enabled',
+			];
+		}
+
+		$user = UserAccount::getLoggedInUser();
+		$keyName = $_REQUEST['keyName'] ?? 'API Key';
+
+		$result = UserOAuthKey::generateKeys($user->id, $keyName);
+		return $result;
+	}
+
+	/** @noinspection PhpUnused */
+	function getOAuthKeys(): array {
+		if (!UserAccount::isLoggedIn()) {
+			return [
+				'success' => false,
+				'message' => 'You must be logged in to view OAuth keys',
+			];
+		}
+
+		require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+		if (!UserOAuthKey::isOAuthEnabled()) {
+			return [
+				'success' => false,
+				'message' => 'OAuth keys are not enabled',
+			];
+		}
+
+		$user = UserAccount::getLoggedInUser();
+		$oauthKey = new UserOAuthKey();
+		$oauthKey->userId = $user->id;
+		$oauthKey->orderBy('created DESC');
+
+		$keys = [];
+		if ($oauthKey->find()) {
+			while ($oauthKey->fetch()) {
+				$keys[] = [
+					'id' => $oauthKey->id,
+					'keyName' => $oauthKey->keyName,
+					'clientId' => $oauthKey->clientId,
+					'created' => $oauthKey->created,
+					'lastUsed' => $oauthKey->lastUsed,
+					'isActive' => $oauthKey->isActive,
+				];
+			}
+		}
+
+		return [
+			'success' => true,
+			'keys' => $keys,
+		];
+	}
+
+	/** @noinspection PhpUnused */
+	function revokeOAuthKey(): array {
+		if (!UserAccount::isLoggedIn()) {
+			return [
+				'success' => false,
+				'message' => 'You must be logged in to revoke OAuth keys',
+			];
+		}
+
+		require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+		if (!UserOAuthKey::isOAuthEnabled()) {
+			return [
+				'success' => false,
+				'message' => 'OAuth keys are not enabled',
+			];
+		}
+
+		$user = UserAccount::getLoggedInUser();
+		$keyId = $_REQUEST['keyId'] ?? null;
+
+		if (!$keyId) {
+			return [
+				'success' => false,
+				'message' => 'Key ID is required',
+			];
+		}
+
+		$oauthKey = new UserOAuthKey();
+		$oauthKey->id = $keyId;
+		$oauthKey->userId = $user->id;
+
+		if ($oauthKey->find(true)) {
+			$oauthKey->delete();
+			return [
+				'success' => true,
+				'message' => 'OAuth key has been revoked',
+			];
+		}
+
+		return [
+			'success' => false,
+			'message' => 'Key not found or does not belong to you',
+		];
+	}
+
+	/** @noinspection PhpUnused */
+	function toggleOAuthKey(): array {
+		if (!UserAccount::isLoggedIn()) {
+			return [
+				'success' => false,
+				'message' => 'You must be logged in to toggle OAuth keys',
+			];
+		}
+
+		require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+		if (!UserOAuthKey::isOAuthEnabled()) {
+			return [
+				'success' => false,
+				'message' => 'OAuth keys are not enabled',
+			];
+		}
+
+		$user = UserAccount::getLoggedInUser();
+		$keyId = $_REQUEST['keyId'] ?? null;
+
+		if (!$keyId) {
+			return [
+				'success' => false,
+				'message' => 'Key ID is required',
+			];
+		}
+
+		$oauthKey = new UserOAuthKey();
+		$oauthKey->id = $keyId;
+		$oauthKey->userId = $user->id;
+
+		if ($oauthKey->find(true)) {
+			$oauthKey->isActive = $oauthKey->isActive ? 0 : 1;
+			$oauthKey->update();
+			return [
+				'success' => true,
+				'message' => $oauthKey->isActive ? 'Key activated' : 'Key deactivated',
+				'isActive' => $oauthKey->isActive,
+			];
+		}
+
+		return [
+			'success' => false,
+			'message' => 'Key not found or does not belong to you',
+		];
+	}
 }

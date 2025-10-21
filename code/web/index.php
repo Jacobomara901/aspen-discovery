@@ -436,6 +436,9 @@ if ($isLoggedIn) {
 	$userIsStaff = $activeUserObject->isStaff();
 	$interface->assign('userIsStaff', $userIsStaff);
 	$interface->assign('showResetUsernameLink', $activeUserObject->showResetUsernameLink());
+
+	require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+	$interface->assign('enableUserOAuth', UserOAuthKey::isOAuthEnabled());
 } elseif ((isset($_POST['username']) && isset($_POST['password']) && ($action != 'Account' && $module != 'AJAX') && ($module != 'API')) || isset($_REQUEST['casLogin'])) {
 	//The user is trying to log in
 	try {

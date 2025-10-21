@@ -129,12 +129,39 @@ abstract class Action
 		die();
 	}
 
+	protected function extractOAuthCredentials(): void {
+		if (!isset($_SERVER['PHP_AUTH_USER']) && (isset($_SERVER['HTTP_AUTHORIZATION']) || isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']))) {
+			$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+			if (preg_match('/^Basic\s+(.*)$/i', $authHeader, $matches)) {
+				$credentials = base64_decode($matches[1]);
+				if (strpos($credentials, ':') !== false) {
+					list($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']) = explode(':', $credentials, 2);
+				}
+			}
+		}
+	}
+
 	protected function grantTokenAccess() : bool {
-		$key1 = base64_decode($_SERVER['PHP_AUTH_USER']);
-		$key2 = base64_decode($_SERVER['PHP_AUTH_PW']);
+		$this->extractOAuthCredentials();
+
+		$key1 = $_SERVER['PHP_AUTH_USER'] ?? '';
+		$key2 = $_SERVER['PHP_AUTH_PW'] ?? '';
 		if (empty($key1) || empty($key2)) {
 			return false;
 		}
+
+		require_once ROOT_DIR . '/sys/Account/UserOAuthKey.php';
+		if (UserOAuthKey::isOAuthEnabled()) {
+			$user = UserOAuthKey::validateCredentials($key1, $key2);
+			if ($user !== false) {
+				global $oAuthUser;
+				$oAuthUser = $user;
+				return true;
+			}
+		}
+
+		$key1 = base64_decode($key1);
+		$key2 = base64_decode($key2);
 
 		if (method_exists($this, 'getLiDASlug')){
 			$lidaSlug = $this->getLiDASlug();
