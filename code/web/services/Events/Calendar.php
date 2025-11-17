@@ -21,12 +21,18 @@ class Events_Calendar extends Action {
 		} else {
 			$month = $today->format('m');
 		}
-		if (isset($_REQUEST['year'])) {
+		if (!empty($_REQUEST['year'])) {
 			$year = $_REQUEST['year'];
 		} else {
 			$year = $today->format('Y');
 		}
 		$interface->assign("useWeek", $useWeek);
+		$interface->assign("yearNumber", $year);
+		if ($useWeek) {
+			$interface->assign("weekNumber", $week);
+		} else {
+			$interface->assign("monthNumber", $month);
+		}
 		if ($useWeek) {
 			$paddedWeek = str_pad($week, 2, '0', STR_PAD_LEFT);
 			$weekFilter = $year . '-' . $paddedWeek;

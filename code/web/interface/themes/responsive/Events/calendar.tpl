@@ -7,6 +7,25 @@
 {/if}
 <h1 class="calendar-event-h1">{translate text='Events Calendar' isPublicFacing=true}</h1>
 	<div class="calendar {if $useWeek}week-view{/if}">
+		<div class="row" style="margin-bottom: 10px;">
+			<div class="col-xs-12 text-center">
+				<form method="get" action="/Events/Calendar" id="locationFilterForm" class="form-inline">
+					{if !empty($weekNumber)}
+						<input type="hidden" name="week" value="{$weekNumber}">
+					{/if}
+					{if !empty($monthNumber)}
+						<input type="hidden" name="month" value="{$monthNumber}">
+					{/if}
+					<input type="hidden" name="year" value="{$yearNumber}">
+					<label for="location" style="margin-right: 5px;">{translate text="Filter by Location:" isPublicFacing=true}</label>
+					<select name="location" id="location" class="input-sm" onchange="this.form.submit();">
+						{foreach from=$locations key=locationId item=locationName}
+							<option value="{$locationId}" {if $selectedLocation == $locationId}selected="selected"{/if}>{translate text=$locationName isPublicFacing=true}</option>
+						{/foreach}
+					</select>
+				</form>
+			</div>
+		</div>
 		<div class="row calendar-nav">
 			<div class="calendar-nav-cell col-tn-2 col-sm-1 align"><a class="btn btn-default" href="{$prevLink}" style="position:absolute;left: 0;"><i class="fas fa-caret-left" role="presentation"></i> {translate text="Previous" isPublicFacing=true}</a></div>
 			<div class="calendar-nav-cell col-tn-8 col-sm-10 text-center calendar-current-month">{$calendarMonth}</div>
