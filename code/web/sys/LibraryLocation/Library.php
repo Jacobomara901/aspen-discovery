@@ -494,6 +494,10 @@ class Library extends DataObject {
 	public $enableTalpaSearch;
 	public $talpaSettingsId;
 
+	// Aspen Events
+	/** @noinspection PhpUnused */
+	public $eventsDefaultCalendarView;
+
 	/** @noinspection PhpUnused */
 	public $allowUpdatingHolidaysFromILS;
 
@@ -3317,6 +3321,28 @@ class Library extends DataObject {
 						'hideInLists' => true,
 					],
 				],
+			],
+
+			//Event Display
+			'eventSection' => [
+				'property' => 'eventSection',
+				'type' => 'section',
+				'label' => 'Events',
+				'hideInLists' => true,
+				'properties' => [
+					'eventsDefaultCalendarView' => [
+						'property' => 'eventsDefaultCalendarView',
+						'type' => 'enum',
+						'label' => 'Events Calendar Default Location Filter',
+						'description' => 'Determines the default location shown in the calendar when users are not logged in',
+						'values' => [
+							'0' => 'All Locations',
+							'1' => "Use library's main branch location",
+							'2' => 'Use first library location (alphabetically)',
+						],
+						'default' => '0',
+					]
+				]
 			],
 
 			// Full Record Display //
