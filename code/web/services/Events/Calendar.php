@@ -5,6 +5,7 @@ class Events_Calendar extends Action {
 	function launch() : void {
 		global $interface;
 		global $timer;
+		global $library;
 
 		$calendarDisplaySettingId = $this->getCalendarDisplaySettingId();
 		$eventFieldsToShow = [];
@@ -53,7 +54,6 @@ class Events_Calendar extends Action {
 			$month = date("n", strtotime($calendarStart));
 			$interface->assign('calendarMonth', $formattedWeekYear);
 			$monthLink = "/Events/Calendar?month=$month&year=$year";
-			$interface->assign("monthLink", $monthLink);
 
 			$prevWeek = $week - 1;
 			$prevYear = $year;
@@ -63,7 +63,6 @@ class Events_Calendar extends Action {
 				$prevYear--;
 			}
 			$prevLink = "/Events/Calendar?week=$prevWeek&year=$prevYear";
-			$interface->assign('prevLink', $prevLink);
 
 			$nextWeek = $week + 1;
 			$nextYear = $year;
@@ -82,7 +81,6 @@ class Events_Calendar extends Action {
 			$week = (int)$calendarStartDay->format("W") + 1;
 			$interface->assign('calendarMonth', $formattedMonthYear);
 			$weekLink = "/Events/Calendar?week=$week&year=$year";
-			$interface->assign("weekLink", $weekLink);
 
 			$prevMonth = $month - 1;
 			$prevYear = $year;
@@ -91,7 +89,6 @@ class Events_Calendar extends Action {
 				$prevYear--;
 			}
 			$prevLink = "/Events/Calendar?month=$prevMonth&year=$prevYear";
-			$interface->assign('prevLink', $prevLink);
 
 			$nextMonth = $month + 1;
 			$nextYear = $year;
@@ -101,8 +98,70 @@ class Events_Calendar extends Action {
 			}
 			$nextLink = "/Events/Calendar?month=$nextMonth&year=$nextYear";
 		}
-		$interface->assign('nextLink', $nextLink);
 
+		// Load locations and set up filtering
+		require_once ROOT_DIR . '/sys/LibraryLocation/Location.php';
+		$locationList = Location::getLocationList(false, true);
+		asort($locationList);
+		$locations = ['all' => 'All Locations'] + $locationList;
+		$interface->assign('locations', $locations);
+
+		// Determine default location
+		$defaultLocation = 'all';
+		if (UserAccount::isLoggedIn()) {
+			$user = UserAccount::getActiveUserObj();
+			$homeLocation = $user->getHomeLocation();
+			if ($homeLocation) {
+				$defaultLocation = $homeLocation->code;
+			}
+		} else {
+			if ($library->eventsDefaultCalendarView == 0) {
+				// 0 = All Locations
+				$defaultLocation = 'all';
+			} elseif ($library->eventsDefaultCalendarView == 1) {
+				// 1 = Use current site's library location
+				// Get the location associated with this library
+				$libraryLocation = new Location();
+				$libraryLocation->libraryId = $library->libraryId;
+				$libraryLocation->orderBy('isMainBranch DESC, displayName ASC');
+				if ($libraryLocation->find(true)) {
+					$defaultLocation = $libraryLocation->code;
+				}
+			} else {
+				// 2 = Use first library location (alphabetically)
+				reset($locationList);
+				$defaultLocation = key($locationList);
+			}
+		}
+		$interface->assign('defaultLocation', $defaultLocation);
+
+		// Check if a location was selected
+		$selectedLocation = isset($_REQUEST['location']) ? $_REQUEST['location'] : $defaultLocation;
+		$interface->assign('selectedLocation', $selectedLocation);
+
+		// Build location parameter for navigation links
+		$locationParam = '';
+		if ($selectedLocation != 'all') {
+			$locationParam = '&location=' . urlencode($selectedLocation);
+		}
+
+		// Update navigation links with location parameter
+		if (isset($prevLink)) {
+			$prevLink .= $locationParam;
+			$interface->assign('prevLink', $prevLink);
+		}
+		if (isset($nextLink)) {
+			$nextLink .= $locationParam;
+			$interface->assign('nextLink', $nextLink);
+		}
+		if (isset($monthLink)) {
+			$monthLink .= $locationParam;
+			$interface->assign('monthLink', $monthLink);
+		}
+		if (isset($weekLink)) {
+			$weekLink .= $locationParam;
+			$interface->assign('weekLink', $weekLink);
+		}
 
 		// Initialise from the current search globals
 		/** @var SearchObject_EventsSearcher $searchObject */
@@ -117,6 +176,14 @@ class Events_Calendar extends Action {
 			$searchObject->addHiddenFilter("event_week", '"' . $weekFilter . '"');
 		} else {
 			$searchObject->addHiddenFilter("event_month", '"' . $monthFilter . '"');
+		}
+		// Apply location filter if not 'All Locations'
+		if ($selectedLocation != 'all') {
+			$location = new Location();
+			$location->code = $selectedLocation;
+			if ($location->find(true)) {
+				$searchObject->addHiddenFilter('branch', '"' . $location->displayName . '"');
+			}
 		}
 		// Check permissions before showing private events
 		if (!UserAccount::userHasPermission('View Private Events for All Locations')) {
