@@ -108,7 +108,7 @@ class Admin_Permissions extends Admin_Admin {
 		$interface->assign('permissions', $permissions);
 		$interface->assign('selectedSections', $selectedSections);
 		foreach ($permissionLabelsForSortingBySection as $sectionName => $permissions) {
-			ksort($permissionLabelsForSortingBySection[$sectionName], SORT_NATURAL | SORT_FLAG_CASE);
+			$permissionLabelsForSortingBySection[$sectionName] = self::sortPermissionsHierarchically($permissionLabelsForSortingBySection[$sectionName], $permissionGroups);
 		}
 		ksort($permissionLabelsForSortingBySection, SORT_NATURAL | SORT_FLAG_CASE);
 		$interface->assign('permissionLabelsForSortingBySection', $permissionLabelsForSortingBySection);
@@ -134,6 +134,7 @@ class Admin_Permissions extends Admin_Admin {
 				'sectionName' => $groupObj->sectionName,
 				'label' => $groupObj->label,
 				'description' => $groupObj->description,
+				'parentGroupKey' => $groupObj->parentGroupKey,
 				'permissions' => [],
 			];
 			$groupLookup[$groupObj->id] = $groupObj->groupKey;
@@ -159,6 +160,148 @@ class Admin_Permissions extends Admin_Admin {
 			}
 		}
 		return $groups;
+	}
+
+	/**
+	 * Sorts permissions hierarchically so parent permission groups appear before their children.
+	 * Supports unlimited nesting depth and maintains alphabetical order within each hierarchy level.
+	 *
+	 * @param array $permissionsInSection Permissions and groups to sort
+	 * @param array $permissionGroups All permission group definitions
+	 * @return array Sorted permissions with parents before children, including depth information
+	 */
+	private static function sortPermissionsHierarchically(array $permissionsInSection, array $permissionGroups): array {
+		// First, sort everything alphabetically
+		ksort($permissionsInSection, SORT_NATURAL | SORT_FLAG_CASE);
+
+		// Calculate depth for all permission groups
+		$depths = self::calculatePermissionDepths($permissionGroups);
+
+		// Separate groups by whether they have a parent, and separate regular permissions
+		$groupsByParent = [];
+		$topLevelGroups = [];
+		$regularPermissions = [];
+
+		foreach ($permissionsInSection as $key => $info) {
+			if ($info['type'] == 'group') {
+				$groupKey = $info['id'];
+				if (isset($permissionGroups[$groupKey])) {
+					// Add depth information to the group info
+					$info['depth'] = $depths[$groupKey] ?? 0;
+
+					$parentKey = $permissionGroups[$groupKey]['parentGroupKey'] ?? null;
+					if (!empty($parentKey)) {
+						// This group has a parent
+						if (!isset($groupsByParent[$parentKey])) {
+							$groupsByParent[$parentKey] = [];
+						}
+						$groupsByParent[$parentKey][$key] = $info;
+					} else {
+						// This is a top-level group
+						$topLevelGroups[$key] = $info;
+					}
+				}
+			} else {
+				// Regular permission
+				$regularPermissions[$key] = $info;
+			}
+		}
+
+		// Recursively build the sorted array
+		$sorted = [];
+		foreach ($topLevelGroups as $key => $info) {
+			self::addGroupAndChildren($key, $info, $groupsByParent, $sorted);
+		}
+
+		// Add any orphaned groups (groups whose parent doesn't exist)
+		foreach ($groupsByParent as $parentKey => $children) {
+			foreach ($children as $childKey => $childInfo) {
+				if (!isset($sorted[$childKey])) {
+					self::addGroupAndChildren($childKey, $childInfo, $groupsByParent, $sorted);
+				}
+			}
+		}
+
+		// Add regular permissions at the end
+		foreach ($regularPermissions as $key => $info) {
+			$sorted[$key] = $info;
+		}
+
+		return $sorted;
+	}
+
+	/**
+	 * Recursively adds a permission group and all its descendants to the sorted array.
+	 *
+	 * @param string $key The permission key/label
+	 * @param array $info The permission group info
+	 * @param array $groupsByParent Array of groups indexed by their parent's groupKey
+	 * @param array &$sorted The sorted array being built (passed by reference)
+	 */
+	private static function addGroupAndChildren(string $key, array $info, array $groupsByParent, array &$sorted): void {
+		// Add this group
+		$sorted[$key] = $info;
+
+		// Get the groupKey to find children
+		$groupKey = $info['id'];
+
+		// Recursively add all children
+		if (isset($groupsByParent[$groupKey])) {
+			foreach ($groupsByParent[$groupKey] as $childKey => $childInfo) {
+				self::addGroupAndChildren($childKey, $childInfo, $groupsByParent, $sorted);
+			}
+		}
+	}
+
+	/**
+	 * Calculates the depth of each permission group in the hierarchy.
+	 * Depth 0 = no parent, Depth 1 = has parent with no parent, etc.
+	 *
+	 * @param array $permissionGroups All permission group definitions
+	 * @return array Array mapping groupKey to depth level
+	 */
+	private static function calculatePermissionDepths(array $permissionGroups): array {
+		$depths = [];
+
+		foreach ($permissionGroups as $groupKey => $groupDef) {
+			if (!isset($depths[$groupKey])) {
+				$depths[$groupKey] = self::calculateGroupDepth($groupKey, $permissionGroups, []);
+			}
+		}
+
+		return $depths;
+	}
+
+	/**
+	 * Recursively calculates the depth of a specific permission group.
+	 * Uses memoization and cycle detection.
+	 *
+	 * @param string $groupKey The groupKey to calculate depth for
+	 * @param array $permissionGroups All permission group definitions
+	 * @param array $visited Array of visited groupKeys for cycle detection
+	 * @return int The depth level (0 = no parent)
+	 */
+	private static function calculateGroupDepth(string $groupKey, array $permissionGroups, array $visited): int {
+		// Cycle detection
+		if (in_array($groupKey, $visited)) {
+			return 0; // Treat cycles as top-level to avoid infinite recursion
+		}
+
+		if (!isset($permissionGroups[$groupKey])) {
+			return 0;
+		}
+
+		$parentKey = $permissionGroups[$groupKey]['parentGroupKey'] ?? null;
+
+		if (empty($parentKey)) {
+			return 0; // No parent, depth is 0
+		}
+
+		// Mark as visited for cycle detection
+		$visited[] = $groupKey;
+
+		// Recursively calculate parent's depth and add 1
+		return 1 + self::calculateGroupDepth($parentKey, $permissionGroups, $visited);
 	}
 
 	function getBreadcrumbs(): array {
