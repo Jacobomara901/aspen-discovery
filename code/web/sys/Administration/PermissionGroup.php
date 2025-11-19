@@ -9,6 +9,7 @@
  * @property string $sectionName The section under which this group appears.
  * @property string $label The display label for the dropdown.
  * @property string $description Helper text shown under the dropdown label.
+ * @property string $parentGroupKey Optional parent group key for hierarchical display.
  */
 class PermissionGroup extends DataObject {
 	public $__table = 'permission_groups';
@@ -19,6 +20,7 @@ class PermissionGroup extends DataObject {
 	public $sectionName;
 	public $label;
 	public $description;
+	public $parentGroupKey;
 
 	static $_objectStructure = [];
 	static function getObjectStructure(string $context = ''): array {
@@ -54,6 +56,12 @@ class PermissionGroup extends DataObject {
 				'type' => 'textarea',
 				'label' => 'Description',
 				'description' => 'Helper text displayed under the dropdown label.',
+			],
+			'parentGroupKey' => [
+				'property' => 'parentGroupKey',
+				'type' => 'text',
+				'label' => 'Parent Group Key',
+				'description' => 'Optional parent group key for displaying this as a child/sub-permission in the hierarchy.',
 			],
 		];
 
