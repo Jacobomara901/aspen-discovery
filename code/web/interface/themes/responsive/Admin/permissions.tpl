@@ -76,8 +76,25 @@
 										{* Display the group *}
 										{assign var='groupKey' value=$permissionInfo.id}
 										{assign var='groupDef' value=$permissionGroups.$groupKey}
-										<tr class="permissionRow">
-											<th scope="row" style="vertical-align: middle;">
+										{assign var='isChildGroup' value=!empty($groupDef.parentGroupKey)}
+										{assign var='depth' value=$permissionInfo.depth|default:0}
+										{assign var='indentAmount' value=$depth*2.5}
+										{assign var='borderColor' value='#428bca'}
+										{if $depth > 1}
+											{* Vary border color for deeper nesting levels *}
+											{assign var='borderColor' value='#5cb85c'}
+										{/if}
+										<tr class="permissionRow {if $isChildGroup}child-permission-group depth-{$depth}{/if}">
+											<th scope="row" style="vertical-align: middle;{if $isChildGroup}padding-left: {$indentAmount}em; border-left: 3px solid {$borderColor};{/if}">
+												{if $isChildGroup}
+													{if $depth == 1}
+														<i class="fas fa-level-up-alt fa-rotate-90" style="color: {$borderColor}; margin-right: 0.5em;" title="{translate text="Child permission of %1%" 1=$groupDef.parentGroupKey inAttribute=true isAdminFacing=true}"></i>
+													{elseif $depth == 2}
+														<i class="fas fa-angle-double-right" style="color: {$borderColor}; margin-right: 0.5em;" title="{translate text="Level %1% child permission of %2%" 1=$depth 2=$groupDef.parentGroupKey inAttribute=true isAdminFacing=true}"></i>
+													{else}
+														<i class="fas fa-ellipsis-h" style="color: {$borderColor}; margin-right: 0.5em;" title="{translate text="Level %1% child permission of %2%" 1=$depth 2=$groupDef.parentGroupKey inAttribute=true isAdminFacing=true}"></i>
+													{/if}
+												{/if}
 												<span id='permissionLabel' style="display: block">{translate text=$groupDef.label isAdminFacing=true}</span>
 												<small id='permissionDescription' class="text-muted">{translate text=$groupDef.description isAdminFacing=true}</small>
 											</th>
