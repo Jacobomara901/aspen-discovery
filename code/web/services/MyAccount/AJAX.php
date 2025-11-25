@@ -8269,10 +8269,6 @@ class MyAccount_AJAX extends JSON_Action {
 	}
 
 	function registerUserToEvent(): array {
-		require_once ROOT_DIR . '/sys/Events/EventInstance.php';
-		require_once ROOT_DIR . '/sys/Account/User.php';
-		require_once ROOT_DIR . '/sys/Events/UserAspenEventInstanceRegistration.php';
-
 		$eventInstanceId = $_REQUEST['eventInstanceId'];
 		$userId = $_REQUEST['userId'];
 
@@ -8292,6 +8288,7 @@ class MyAccount_AJAX extends JSON_Action {
 			return $result;
 		}
 
+		require_once ROOT_DIR . '/sys/Account/User.php';
 		$user = new User();
 		$user->id = $userId;
 		if(!$user->find(true)) {
@@ -8299,6 +8296,7 @@ class MyAccount_AJAX extends JSON_Action {
 			return $result;
 		}
 
+		require_once ROOT_DIR . '/sys/Events/EventInstance.php';
 		$eventInstance = new EventInstance();
 		$eventInstance->id = $eventInstanceId;
 		if (!$eventInstance->find(true)) {
@@ -8309,6 +8307,7 @@ class MyAccount_AJAX extends JSON_Action {
 			return $result;
 		}
 
+		require_once ROOT_DIR . '/sys/Events/UserAspenEventInstanceRegistration.php';
 		$registration = new UserAspenEventInstanceRegistration();
 		$registration->userId = $userId;
 		$registration->eventInstanceId = $eventInstanceId;
