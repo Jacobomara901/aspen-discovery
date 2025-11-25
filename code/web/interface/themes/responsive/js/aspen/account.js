@@ -2278,9 +2278,7 @@ AspenDiscovery.Account = (function () {
 
 			$.getJSON(url, params, function (data) {
 				AspenDiscovery.showMessage(data.title, data.message);
-			}).fail(function (jqXHR, textStatus, errorThrown) {
-				AspenDiscovery.ajaxFail(jqXHR, textStatus, errorThrown);
-			});
+			}).fail(AspenDiscovery.ajaxFail);
 		},
 
 		deleteSavedEvent: function (id, page, filter) {
