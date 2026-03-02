@@ -369,7 +369,10 @@ class EventInstance extends DataObject {
 		$recurrence = $event->getRecurrence();
 
 		global $configArray;
-		$bookingUrl = $configArray['Site']['url'] . '/AspenEvents/aspenEvents_' . $this->eventId . '_' . $this->id . '/Event';
+		$siteUrl = $configArray['Site']['url'];
+		$solrId = 'aspenEvents_' . $this->eventId . '_' . $this->id;
+		$bookingUrl = $siteUrl . '/AspenEvents/' . $solrId . '/Event';
+		$eventImageURL = $event->cover ? $siteUrl . '/bookcover.php?id=' . $solrId . '&size=medium&type=aspenEvent_event' : null;
 
 		return [
 			'id' => (int)$this->id,
@@ -388,7 +391,7 @@ class EventInstance extends DataObject {
 				'isFree' => true,
 				'venueName' => $venueName,
 				'organizer' => $organizer,
-				'eventImageURL' => $event->cover,
+				'eventImageURL' => $eventImageURL,
 				'tags' => $tags,
 				'isRecurring' => $recurrence !== null,
 				'recurrencePattern' => $recurrence['type'] ?? null,
