@@ -15,36 +15,47 @@ $dbPort = $configArray['Database']['database_aspen_dbport'];
 $curDir = __DIR__;
 $baseAspenSQL = "$curDir/../../install/aspen.sql";
 
-//Remove all existing foreign constraints
-$foreignConstraintResults = $aspen_db->query("SELECT CONSTRAINT_NAME, TABLE_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '$dbName'");
-$allForeignConstraints = $foreignConstraintResults->fetchAll(PDO::FETCH_ASSOC);
-$aspen_db->exec("SET foreign_key_checks = 0;");
-foreach ($allForeignConstraints as $foreignConstraint) {
-	$tableName = $foreignConstraint['TABLE_NAME'];
-	$constraintName = $foreignConstraint['CONSTRAINT_NAME'];
+//Reset the database to a clean state before running tests. This drops every table in the
+//configured database, so it must only run against a dedicated test database. Set the
+//RESET_TEST_DB environment variable to a falsy value (0, false, no) to skip the reset and
+//run the tests against the existing database as-is.
+$resetTestDbEnv = getenv('RESET_TEST_DB');
+$resetTestDb = $resetTestDbEnv === false || !in_array(strtolower($resetTestDbEnv), ['0', 'false', 'no', 'off'], true);
 
-	// Construct the DROP FOREIGN KEY statement
-	$dropSql = "ALTER TABLE $tableName DROP FOREIGN KEY $constraintName";
-	$aspen_db->exec($dropSql);
+if (!$resetTestDb) {
+	echo "RESET_TEST_DB is disabled - skipping database reset, running against the existing database.\n";
+} else {
+	//Remove all existing foreign constraints
+	$foreignConstraintResults = $aspen_db->query("SELECT CONSTRAINT_NAME, TABLE_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE = 'FOREIGN KEY' AND TABLE_SCHEMA = '$dbName'");
+	$allForeignConstraints = $foreignConstraintResults->fetchAll(PDO::FETCH_ASSOC);
+	$aspen_db->exec("SET foreign_key_checks = 0;");
+	foreach ($allForeignConstraints as $foreignConstraint) {
+		$tableName = $foreignConstraint['TABLE_NAME'];
+		$constraintName = $foreignConstraint['CONSTRAINT_NAME'];
+
+		// Construct the DROP FOREIGN KEY statement
+		$dropSql = "ALTER TABLE $tableName DROP FOREIGN KEY $constraintName";
+		$aspen_db->exec($dropSql);
+	}
+	$aspen_db->exec("SET foreign_key_checks = 1;");
+
+	//Remove all existing database tables
+	$result = $aspen_db->query("SELECT TABLE_NAME FROM information_schema.tables where TABLE_SCHEMA = '$dbName'");
+	$allTables = $result->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($allTables as $table) {
+		$aspen_db->exec("DROP TABLE {$table['TABLE_NAME']}");
+	}
+
+	//Import blank database
+	$importCommand = "mysql -u$dbUser -p$dbPassword -h$dbHost -P$dbPort $dbName < $baseAspenSQL";
+	exec($importCommand);
+
+	////Import unit test specific data
+	$unitTestsSQL = "$curDir/../../tests/unit_tests.sql";
+	$importCommand = "mysql -u$dbUser -p$dbPassword -h$dbHost -P$dbPort $dbName < $unitTestsSQL";
+	$results = [];
+	exec($importCommand, $results);
 }
-$aspen_db->exec("SET foreign_key_checks = 1;");
-
-//Remove all existing database tables
-$result = $aspen_db->query("SELECT TABLE_NAME FROM information_schema.tables where TABLE_SCHEMA = '$dbName'");
-$allTables = $result->fetchAll(PDO::FETCH_ASSOC);
-foreach ($allTables as $table) {
-	$aspen_db->exec("DROP TABLE {$table['TABLE_NAME']}");
-}
-
-//Import blank database
-$importCommand = "mysql -u$dbUser -p$dbPassword -h$dbHost -P$dbPort $dbName < $baseAspenSQL";
-exec($importCommand);
-
-////Import unit test specific data
-$unitTestsSQL = "$curDir/../../tests/unit_tests.sql";
-$importCommand = "mysql -u$dbUser -p$dbPassword -h$dbHost -P$dbPort $dbName < $unitTestsSQL";
-$results = [];
-exec($importCommand, $results);
 
 //Make sure solr is running?
 
