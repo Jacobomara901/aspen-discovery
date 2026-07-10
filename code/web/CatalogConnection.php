@@ -1370,7 +1370,7 @@ class CatalogConnection {
 			}
 		}
 
-		$historicalResult = $this->updateReadingHistoryFromHistoricalCheckouts($patron, $isNightlyUpdate, $patron->lastReadingHistoryUpdate);
+		$historicalResult = $this->updateReadingHistoryFromHistoricalCheckouts($patron, $patron->lastReadingHistoryUpdate);
 
 		if (empty($historicalResult['error'])) {
 			$patron->__set('lastReadingHistoryUpdate', $updateStartTime);
@@ -1383,12 +1383,8 @@ class CatalogConnection {
 		];
 	}
 
-	public function updateReadingHistoryFromHistoricalCheckouts(User $patron, bool $isNightlyUpdate, ?int $sinceTimestamp): array {
-		if (
-			$this->bypassReadingHistoryUpdate($patron, $isNightlyUpdate) ||
-			!$patron->initialReadingHistoryLoaded ||
-			!$this->driver->hasHistoricalCheckouts() ||
-			empty($sinceTimestamp)) { // An empty timestamp means no prior update to sync from; full backfill is loadInitialReadingHistory.php's remit, not the nightly path's.
+	private function updateReadingHistoryFromHistoricalCheckouts(User $patron, ?int $sinceTimestamp): array {
+		if (!$patron->initialReadingHistoryLoaded || !$this->driver->hasHistoricalCheckouts() || empty($sinceTimestamp)) {
 			return ['skipped' => true];
 		}
 
