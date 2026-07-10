@@ -1480,7 +1480,7 @@ class CatalogConnection {
 		require_once ROOT_DIR . '/sys/ReadingHistoryEntry.php';
 		$entry = new ReadingHistoryEntry();
 		$entry->userId = $patron->id;
-		$entry->groupedWorkPermanentId = $data['permanentId'] ?? "";
+		$entry->groupedWorkPermanentId = empty($data['permanentId']) ? null : $data['permanentId'];
 		$entry->source = $data['source'];
 		$entry->sourceId = $data['sourceId'] ?? null;
 		$entry->barcode = $data['barcode'] ?? null;
