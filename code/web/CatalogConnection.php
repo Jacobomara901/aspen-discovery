@@ -1403,19 +1403,22 @@ class CatalogConnection {
 		$existing->userId = $patron->id;
 		$existing->find();
 		while ($existing->fetch()) {
-			$key = $this->getReadingHistoryDedupKey($existing->source, $existing->sourceId, $existing->barcode, $existing->checkOutDate);
-			$existingKeys[$key] = true;
+			$existingKeys[$this->getReadingHistoryDedupKey($existing->sourceId, $existing->barcode, $existing->checkOutDate)] = true;
+			$existingKeys[$this->getReadingHistoryDedupKey($existing->sourceId, $existing->barcode)] = true;
 		}
 
 		$source = $this->accountProfile->recordSource;
 		$inserted = 0;
 		foreach ($result['titles'] as $title) {
-			$checkOutDate = $title['checkout'] ?? null;
-			$key = $this->getReadingHistoryDedupKey($source, $title['sourceId'] ?? null, $title['barcode'] ?? null, $checkOutDate);
-			if (isset($existingKeys[$key])) {
+			$candidateKeys = $this->getReadingHistoryDedupKeysForTitle($title);
+			if ($this->matchesExistingReadingHistoryKey($candidateKeys, $existingKeys)) {
 				continue;
 			}
-			$existingKeys[$key] = true;
+			foreach ($candidateKeys as $candidateKey) {
+				$existingKeys[$candidateKey] = true;
+			}
+
+			$checkOutDate = $title['checkout'] ?? null;
 
 			$entry = $this->buildReadingHistoryEntry($patron, [
 				'permanentId' => $title['permanentId'] ?? "",
@@ -1443,8 +1446,26 @@ class CatalogConnection {
 		return ['skipped' => false, 'inserted' => $inserted];
 	}
 
-	private function getReadingHistoryDedupKey(?string $source, ?string $sourceId, ?string $barcode, $checkOutDate): string {
-		return strtolower(trim($source . ':' . $sourceId . '_' . ($barcode ?? '') . '_' . ($checkOutDate ?? '')));
+	private function getReadingHistoryDedupKey(?string $identifier, ?string $barcode, $checkOutDate = null): string {
+		return strtolower(trim($identifier . '_' . ($barcode ?? '') . '_' . ($checkOutDate ?? '')));
+	}
+
+	private function getReadingHistoryDedupKeysForTitle(array $title): array {
+		$keys = [];
+		if (!empty($title['issueId'])) {
+			$keys[] = $this->getReadingHistoryDedupKey($title['issueId'], $title['barcode'] ?? null);
+		}
+		$keys[] = $this->getReadingHistoryDedupKey($title['sourceId'] ?? null, $title['barcode'] ?? null, $title['checkout'] ?? null);
+		return array_unique($keys);
+	}
+
+	private function matchesExistingReadingHistoryKey(array $candidateKeys, array $existingKeys): bool {
+		foreach ($candidateKeys as $candidateKey) {
+			if (isset($existingKeys[$candidateKey])) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private function buildReadingHistoryEntry(User $patron, array $data): ReadingHistoryEntry {

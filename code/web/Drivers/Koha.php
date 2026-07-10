@@ -1825,6 +1825,7 @@ class Koha extends AbstractIlsDriver {
 		$curTitle = [];
 		$curTitle['id'] = $biblionumber;
 		$curTitle['sourceId'] = $biblionumber;
+		$curTitle['issueId'] = $checkout['checkout_id'] ?? null;
 		$curTitle['barcode'] = $barcode ?: null;
 		$curTitle['title'] = $title;
 		$curTitle['author'] = $author;
