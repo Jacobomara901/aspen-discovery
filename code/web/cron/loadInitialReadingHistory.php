@@ -117,51 +117,12 @@ foreach ($usersToProcess as $userId) {
 				if ($result['numTitles'] > 0) {
 					$cronLogEntry->notes .= "<br/>Found {$result['numTitles']} titles to load for $user->displayName ($user->id).";
 					foreach ($result['titles'] as $title) {
-						$userReadingHistoryEntry = new ReadingHistoryEntry();
-						$userReadingHistoryEntry->userId = $user->id;
-						$userReadingHistoryEntry->groupedWorkPermanentId = $title['permanentId'] ?? null;
-						$userReadingHistoryEntry->source = $catalog->accountProfile->recordSource;
-						$userReadingHistoryEntry->sourceId = $title['sourceId'];
-						$userReadingHistoryEntry->barcode = $title['barcode'] ?? null;
-						$userReadingHistoryEntry->callNumber = $title['callNumber'] ?? null;
-						$userReadingHistoryEntry->volume = $title['volume'] ?? null;
-						$userReadingHistoryEntry->title = substr($title['title'], 0, 150);
-						$userReadingHistoryEntry->author = substr($title['author'], 0, 75);
-						$userReadingHistoryEntry->format = is_array($title['format']) ? implode(', ', $title['format']) : $title['format'];
-						$userReadingHistoryEntry->checkOutDate = $title['checkout'];
-						$userReadingHistoryEntry->checkInDate = $title['checkin'] ?? null;
-
-						// -1 for imported entries to distinguish them from currently checked-out items.
-						if ($userReadingHistoryEntry->checkInDate === -1) {
-							// If the new entry's barcode exists and check-in data is missing,
-							// while the existing entry's check-in has no barcode but has a check-in date,
-							// assume that this is a duplicate entry, so don't insert it.
-							if (!empty($title['barcode'])) {
-								$checkDuplicateEntry = new ReadingHistoryEntry();
-								$checkDuplicateEntry->userId = $user->id;
-								$checkDuplicateEntry->source = $catalog->accountProfile->recordSource;
-								$checkDuplicateEntry->sourceId = $title['sourceId'];
-								$checkDuplicateEntry->format = is_array($title['format']) ? implode(', ', $title['format']) : $title['format'];
-								$checkDuplicateEntry->checkOutDate = $title['checkout'];
-								$checkDuplicateEntry->deleted = 0;
-								$checkDuplicateEntry->whereAdd('barcode IS NULL OR barcode = ""');
-								$checkDuplicateEntry->whereAdd('checkInDate IS NOT NULL');
-								if ($checkDuplicateEntry->find(true)) {
-									continue;
-								}
-							}
+						if (isDuplicateOfBarcodelessEntry($catalog, $user, $title)) {
+							continue;
 						}
-
-						if (empty($title['isIll'])) {
-							$userReadingHistoryEntry->isIll = 0;
-						} else {
-							$userReadingHistoryEntry->isIll = 1;
-						}
-
-						$userReadingHistoryEntry->deleted = 0;
-						if (!$userReadingHistoryEntry->insert()) {
+						if (!$catalog->insertHistoricalReadingHistoryEntry($user, $title, $catalog->accountProfile->recordSource)) {
 							$cronLogEntry->numErrors++;
-							$cronLogEntry->notes .= "<br/>Error inserting reading history entry for user $user->id: " . $userReadingHistoryEntry->getLastError();
+							$cronLogEntry->notes .= "<br/>Error inserting reading history entry for user $user->id.";
 							$errorCount++;
 						}
 					}
@@ -218,3 +179,22 @@ $cronLogEntry->notes .= "<br/>Finished initial reading history load process. Pro
 
 $cronLogEntry->endTime = time();
 $cronLogEntry->update();
+
+function isDuplicateOfBarcodelessEntry(CatalogConnection $catalog, User $user, array $title): bool {
+	if (($title['checkin'] ?? null) !== -1) {
+		return false;
+	}
+	if (empty($title['barcode'])) {
+		return false;
+	}
+	$existingEntry = new ReadingHistoryEntry();
+	$existingEntry->userId = $user->id;
+	$existingEntry->source = $catalog->accountProfile->recordSource;
+	$existingEntry->sourceId = $title['sourceId'];
+	$existingEntry->format = is_array($title['format']) ? implode(', ', $title['format']) : $title['format'];
+	$existingEntry->checkOutDate = $title['checkout'];
+	$existingEntry->deleted = 0;
+	$existingEntry->whereAdd('barcode IS NULL OR barcode = ""');
+	$existingEntry->whereAdd('checkInDate IS NOT NULL');
+	return (bool)$existingEntry->find(true);
+}

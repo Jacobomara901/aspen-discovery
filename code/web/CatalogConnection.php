@@ -1421,32 +1421,36 @@ class CatalogConnection {
 				$existingKeys[$candidateKey] = true;
 			}
 
-			$checkOutDate = $title['checkout'] ?? null;
-
-			$entry = $this->buildReadingHistoryEntry($patron, [
-				'permanentId' => $title['permanentId'] ?? "",
-				'source' => $source,
-				'sourceId' => $title['sourceId'] ?? null,
-				'barcode' => $title['barcode'] ?? null,
-				'callNumber' => $title['callNumber'] ?? null,
-				'volume' => $title['volume'] ?? null,
-				'title' => $title['title'] ?? null,
-				'author' => $title['author'] ?? null,
-				'format' => $title['format'] ?? null,
-				'checkOutDate' => $checkOutDate,
-			]);
-			$entry->checkInDate = (isset($title['checkin']) && $title['checkin'] !== -1) ? $title['checkin'] : null;
-			$entry->isIll = empty($title['isIll']) ? 0 : 1;
-			$entry->deleted = 0;
-			if ($entry->insert()) {
+			if ($this->insertHistoricalReadingHistoryEntry($patron, $title, $source)) {
 				$inserted++;
-			} else {
-				global $logger;
-				$logger->log("Could not insert historical reading history entry for user $patron->id.", Logger::LOG_ERROR);
 			}
 		}
 
 		return ['skipped' => false, 'inserted' => $inserted];
+	}
+
+	public function insertHistoricalReadingHistoryEntry(User $patron, array $title, string $source): bool {
+		$entry = $this->buildReadingHistoryEntry($patron, [
+			'permanentId' => $title['permanentId'] ?? null,
+			'source' => $source,
+			'sourceId' => $title['sourceId'] ?? null,
+			'barcode' => $title['barcode'] ?? null,
+			'callNumber' => $title['callNumber'] ?? null,
+			'volume' => $title['volume'] ?? null,
+			'title' => $title['title'] ?? null,
+			'author' => $title['author'] ?? null,
+			'format' => $title['format'] ?? null,
+			'checkOutDate' => $title['checkout'] ?? null,
+		]);
+		$entry->checkInDate = $title['checkin'] ?? null;
+		$entry->isIll = empty($title['isIll']) ? 0 : 1;
+		$entry->deleted = 0;
+		if ($entry->insert()) {
+			return true;
+		}
+		global $logger;
+		$logger->log("Could not insert historical reading history entry for user $patron->id: " . $entry->getLastError(), Logger::LOG_ERROR);
+		return false;
 	}
 
 	private function getReadingHistoryDedupKey(?string $identifier, ?string $barcode, $checkOutDate = null): string {
