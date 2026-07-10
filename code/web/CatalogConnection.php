@@ -1369,9 +1369,11 @@ class CatalogConnection {
 			}
 		}
 
-		$this->updateReadingHistoryFromHistoricalCheckouts($patron, $isNightlyUpdate, $patron->lastReadingHistoryUpdate);
+		$historicalResult = $this->updateReadingHistoryFromHistoricalCheckouts($patron, $isNightlyUpdate, $patron->lastReadingHistoryUpdate);
 
-		$patron->__set('lastReadingHistoryUpdate', time());
+		if (empty($historicalResult['error'])) {
+			$patron->__set('lastReadingHistoryUpdate', time());
+		}
 		$patron->update();
 
 		return [
@@ -1391,7 +1393,10 @@ class CatalogConnection {
 
 		$result = $this->driver->loadReadingHistoryHistoricalCheckoutsSinceLastUpdate($patron, $sinceTimestamp);
 		if (empty($result['success'])) {
-			return ['skipped' => true];
+			return [
+				'skipped' => true,
+				'error' => true,
+			];
 		}
 		if (empty($result['titles'])) {
 			return ['skipped' => false, 'inserted' => 0];

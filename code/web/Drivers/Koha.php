@@ -1651,7 +1651,11 @@ class Koha extends AbstractIlsDriver {
 		set_time_limit(0);
 		$readingHistoryTitles = [];
 		foreach ([false, true] as $checkedIn) {
-			$readingHistoryTitles = array_merge($readingHistoryTitles, $this->fetchReadingHistoryCheckouts($patron, $checkedIn, $illItemTypes));
+			$fetchedTitles = $this->fetchReadingHistoryCheckouts($patron, $checkedIn, $illItemTypes);
+			if ($fetchedTitles === null) {
+				throw new Exception("Failed to fetch reading history checkouts for user $patron->id from Koha.");
+			}
+			$readingHistoryTitles = array_merge($readingHistoryTitles, $fetchedTitles);
 		}
 
 		$readingHistoryTitles = $this->enrichReadingHistoryTitles($readingHistoryTitles);
@@ -1681,11 +1685,13 @@ class Koha extends AbstractIlsDriver {
 		}
 
 		$titles = $this->fetchReadingHistoryCheckouts($patron, true, $illItemTypes, $query);
-		$titles = $this->enrichReadingHistoryTitles($titles);
+		if ($titles === null) {
+			return ['success' => false];
+		}
 
 		return [
 			'success' => true,
-			'titles' => $titles,
+			'titles' => $this->enrichReadingHistoryTitles($titles),
 		];
 	}
 
@@ -1753,7 +1759,7 @@ class Koha extends AbstractIlsDriver {
 		return $illItemTypes;
 	}
 
-	private function fetchReadingHistoryCheckouts(User $patron, bool $checkedIn, array $illItemTypes, string $extraQuery = ''): array {
+	private function fetchReadingHistoryCheckouts(User $patron, bool $checkedIn, array $illItemTypes, string $extraQuery = ''): ?array {
 		$titles = [];
 		$perPage = 100;
 		$page = 1;
@@ -1774,7 +1780,12 @@ class Koha extends AbstractIlsDriver {
 			$endpoint .= $extraQuery ?: "&patron_id=" . $patron->unique_ils_id;
 
 			$response = $this->kohaApiUserAgent->get($endpoint, 'koha.getReadingHistory.' . $checkoutType . '.page' . $page, [], $extraHeaders);
-			if (!$response || $response['code'] != 200 || empty($response['content'])) {
+			if (!$response || $response['code'] != 200) {
+				global $logger;
+				$logger->log("Failed to fetch $checkoutType checkouts page $page for user $patron->id from Koha, HTTP " . ($response['code'] ?? 'no response') . ".", Logger::LOG_ERROR);
+				return null;
+			}
+			if (empty($response['content'])) {
 				break;
 			}
 			foreach ($response['content'] as $checkout) {
