@@ -1672,17 +1672,18 @@ class Koha extends AbstractIlsDriver {
 		return true;
 	}
 
-	public function loadReadingHistoryHistoricalCheckoutsSinceLastUpdate(User $patron, ?int $sinceTimestamp = null): array {
+	public function loadReadingHistoryHistoricalCheckoutsSinceLastUpdate(User $patron, int $sinceTimestamp): array {
+		if (empty($sinceTimestamp)) {
+			return ['success' => false];
+		}
+
 		$illItemTypes = $this->getIllItemTypes();
 
 		ini_set('memory_limit', '2G');
 		set_time_limit(0);
 
-		$query = '';
-		if (!empty($sinceTimestamp)) {
-			$since = date('c', $sinceTimestamp);
-			$query = '&q=' . rawurlencode(json_encode(['checkin_date' => ['>=' => $since], 'patron_id' => $patron->unique_ils_id]));
-		}
+		$since = date('c', $sinceTimestamp);
+		$query = '&q=' . rawurlencode(json_encode(['checkin_date' => ['>=' => $since], 'patron_id' => $patron->unique_ils_id]));
 
 		$titles = $this->fetchReadingHistoryCheckouts($patron, true, $illItemTypes, $query);
 		if ($titles === null) {

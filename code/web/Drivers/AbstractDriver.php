@@ -24,6 +24,10 @@ abstract class AbstractDriver {
 		return false;
 	}
 
+	public function loadReadingHistoryHistoricalCheckoutsSinceLastUpdate(User $patron, int $sinceTimestamp): array {
+		return ['success' => false];
+	}
+
 	public function doReadingHistoryAction(User $patron, string $action, array $selectedTitles): ?array {
 		return null;
 	}
