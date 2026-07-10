@@ -1260,6 +1260,7 @@ class CatalogConnection {
 				'skipped' => true
 			];
 		}
+		$updateStartTime = time();
 		$activeHistoryTitles = [];
 		require_once ROOT_DIR . '/sys/ReadingHistoryEntry.php';
 		// Include deleted titles to prevent duplicates.
@@ -1372,7 +1373,7 @@ class CatalogConnection {
 		$historicalResult = $this->updateReadingHistoryFromHistoricalCheckouts($patron, $isNightlyUpdate, $patron->lastReadingHistoryUpdate);
 
 		if (empty($historicalResult['error'])) {
-			$patron->__set('lastReadingHistoryUpdate', time());
+			$patron->__set('lastReadingHistoryUpdate', $updateStartTime);
 		}
 		$patron->update();
 
