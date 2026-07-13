@@ -1,4 +1,7 @@
 <?php
+if (empty($_SERVER['aspen_server']) && !empty($argv[1])) {
+	$_SERVER['aspen_server'] = $argv[1];
+}
 require_once __DIR__ . '/../bootstrap.php';
 
 set_time_limit(0);
