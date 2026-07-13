@@ -61,7 +61,7 @@ class UserAccount {
 
 	public static function get2FAMethodStatus(): array {
 		$user = UserAccount::getActiveUserObj();
-		if ($user !== null) {
+		if ($user instanceof User) {
 
 			$twoFactorAuthSetting = $user->getTwoFactorAuthenticationSetting();
 			if ($twoFactorAuthSetting != null) {
