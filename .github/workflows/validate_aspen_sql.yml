@@ -1,0 +1,65 @@
+name: Validate aspen.sql
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'install/aspen.sql'
+      - 'code/web/sys/DBMaintenance/**'
+      - 'code/web/cron/createDefaultDatabaseScript.php'
+      - '.github/workflows/validate_aspen_sql.yml'
+
+jobs:
+  regenerate_aspen_sql:
+    name: Regenerate aspen.sql and check for drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+
+      - name: Install aspen-dev-box
+        run: |
+          cd ..
+          git clone --depth 1 https://github.com/Aspen-Discovery/aspen-dev-box-image.git aspen-dev-box
+          cd aspen-dev-box
+          cp .env.example .env
+          echo "$(pwd)/bin/linux" >> $GITHUB_PATH
+
+      - name: Set up environment variables
+        run: |
+          echo "ASPEN_DOCKER=$(readlink -f ../aspen-dev-box)" >> $GITHUB_ENV
+          echo "ASPEN_CLONE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          echo "ASPEN_STACK=aspenci" >> $GITHUB_ENV
+          echo "UID=$(id -u)" >> $GITHUB_ENV
+          echo "GID=$(id -g)" >> $GITHUB_ENV
+
+      - name: Launch adb instance
+        run: adb up -d --ils none
+
+      - name: Wait for adb to be ready
+        run: |
+          timeout 300 bash -c 'until curl -sf http://localhost:8083/ > /dev/null; do sleep 5; done'
+          echo "Aspen dev box is ready"
+
+      - name: Regenerate aspen.sql
+        run: docker exec -u www-data ${ASPEN_STACK}-aspen-dev-box-1 bash -c 'cd /usr/local/aspen-discovery/code/web/cron && php createDefaultDatabaseScript.php "$SITE_NAME"'
+
+      - name: Check for drift
+        run: |
+          if ! git diff --quiet -- install/aspen.sql; then
+            git diff --stat -- install/aspen.sql
+            echo "::error::install/aspen.sql is out of date. Regenerate it by running code/web/cron/createDefaultDatabaseScript.php against a clean, fully migrated database and commit the result."
+            exit 1
+          fi
+          echo "install/aspen.sql is up to date."
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          docker logs ${ASPEN_STACK}-aspen-dev-box-1 --tail 100 || true
+          docker logs ${ASPEN_STACK}-aspen-db-1 --tail 50 || true
+
+      - name: Cleanup adb instance
+        if: always()
+        run: adb down || true
