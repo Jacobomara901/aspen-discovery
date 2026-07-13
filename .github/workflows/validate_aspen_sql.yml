@@ -1,22 +1,38 @@
-name: Validate aspen.sql
+name: Regenerate aspen.sql
 
 on:
   workflow_dispatch:
   pull_request:
+    types:
+      - closed
+    branches:
+      - '[0-9][0-9].[0-9][0-9].[0-9][0-9]'
     paths:
-      - 'install/aspen.sql'
       - 'code/web/sys/DBMaintenance/**'
       - 'code/web/cron/createDefaultDatabaseScript.php'
-      - '.github/workflows/validate_aspen_sql.yml'
+      - 'code/web/cron/runDatabaseUpdates.php'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: regenerate-aspen-sql-${{ github.event.pull_request.base.ref || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   regenerate_aspen_sql:
-    name: Regenerate aspen.sql and check for drift
+    name: Regenerate aspen.sql and commit drift
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
+    env:
+      TARGET_BRANCH: ${{ github.event.pull_request.base.ref || github.ref_name }}
+
     steps:
-      - name: Checkout pull request branch
+      - name: Checkout target branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
 
       - name: Install aspen-dev-box
         run: |
@@ -42,17 +58,33 @@ jobs:
           timeout 300 bash -c 'until curl -sf http://localhost:8083/ > /dev/null; do sleep 5; done'
           echo "Aspen dev box is ready"
 
+      - name: Reset the database to a clean state
+        run: |
+          docker exec ${ASPEN_STACK}-aspen-dev-box-1 bash -c '
+            service cron stop
+            mysql -h aspen-db -uroot -p"$DATABASE_ROOT_PASSWORD" -e "DROP DATABASE $DATABASE_NAME; CREATE DATABASE $DATABASE_NAME"
+            mysql -h aspen-db -uroot -p"$DATABASE_ROOT_PASSWORD" "$DATABASE_NAME" < /usr/local/aspen-discovery/install/aspen.sql
+          '
+
+      - name: Apply pending database updates
+        run: docker exec ${ASPEN_STACK}-aspen-dev-box-1 bash -c 'cd /usr/local/aspen-discovery/code/web/cron && php runDatabaseUpdates.php "$SITE_NAME"'
+
       - name: Regenerate aspen.sql
         run: docker exec -u www-data ${ASPEN_STACK}-aspen-dev-box-1 bash -c 'cd /usr/local/aspen-discovery/code/web/cron && php createDefaultDatabaseScript.php "$SITE_NAME"'
 
-      - name: Check for drift
+      - name: Commit regenerated aspen.sql
         run: |
-          if ! git diff --quiet -- install/aspen.sql; then
-            git diff --stat -- install/aspen.sql
-            echo "::error::install/aspen.sql is out of date. Regenerate it by running code/web/cron/createDefaultDatabaseScript.php against a clean, fully migrated database and commit the result."
-            exit 1
+          if git diff --quiet -- install/aspen.sql; then
+            echo "install/aspen.sql is up to date."
+            exit 0
           fi
-          echo "install/aspen.sql is up to date."
+          git diff --stat -- install/aspen.sql
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add install/aspen.sql
+          git commit -m "[ci] regenerate aspen.sql"
+          git pull --rebase origin "$TARGET_BRANCH"
+          git push origin "HEAD:$TARGET_BRANCH"
 
       - name: Show logs on failure
         if: failure()
