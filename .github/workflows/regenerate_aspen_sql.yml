@@ -22,7 +22,7 @@ concurrency:
 jobs:
   regenerate_aspen_sql:
     name: Regenerate aspen.sql and commit drift
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && github.repository == 'Aspen-Discovery/aspen-discovery')
     runs-on: ubuntu-latest
 
     env:
