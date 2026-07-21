@@ -1321,6 +1321,40 @@ class Location extends DataObject {
 			];
 		}
 
+		if (array_key_exists('BorrowBox', $enabledModules)) {
+			require_once ROOT_DIR . '/sys/BorrowBox/LocationBorrowBoxScope.php';
+			$locationBorrowBoxScopeStructure = LocationBorrowBoxScope::getObjectStructure($context);
+			unset($locationBorrowBoxScopeStructure['locationId']);
+
+			$structure['borrowboxSection'] = [
+				'property' => 'borrowboxSection',
+				'type' => 'section',
+				'label' => 'BorrowBox',
+				'hideInLists' => true,
+				'renderAsHeading' => true,
+				'permissions' => ['Location Records included in Catalog'],
+				'properties' => [
+					'borrowBoxScopes' => [
+						'property' => 'borrowBoxScopes',
+						'type' => 'oneToMany',
+						'label' => 'BorrowBox Scopes',
+						'description' => 'The BorrowBox scopes to use',
+						'keyThis' => 'locationId',
+						'keyOther' => 'locationId',
+						'subObjectType' => 'LocationBorrowBoxScope',
+						'structure' => $locationBorrowBoxScopeStructure,
+						'sortable' => false,
+						'storeDb' => true,
+						'allowEdit' => true,
+						'canEdit' => true,
+						'canAddNew' => true,
+						'canDelete' => true,
+						'forcesReindex' => true,
+					],
+				],
+			];
+		}
+
 		if (array_key_exists('Palace Project', $enabledModules)) {
 			require_once ROOT_DIR . '/sys/PalaceProject/PalaceProjectScope.php';
 			$palaceProjectScope = new PalaceProjectScope();
@@ -2076,6 +2110,8 @@ class Location extends DataObject {
 			return $this->getSideLoadScopes();
 		} elseif ($name == 'overDriveScopes') {
 			return $this->getLocationOverDriveScopes();
+		} elseif ($name == 'borrowBoxScopes') {
+			return $this->getLocationBorrowBoxScopes();
 		} elseif ($name == 'combinedResultSections') {
 			return $this->getCombinedResultSections();
 		} elseif ($name == 'cloudLibraryScope') {
@@ -2100,6 +2136,8 @@ class Location extends DataObject {
 			$this->_sideLoadScopes = $value;
 		} elseif ($name == 'overDriveScopes') {
 			$this->_locationOverDriveScopes = $value;
+		} elseif ($name == 'borrowBoxScopes') {
+			$this->_locationBorrowBoxScopes = $value;
 		} elseif ($name == 'combinedResultSections') {
 			$this->_combinedResultSections = $value;
 		} elseif ($name == 'cloudLibraryScope') {
@@ -2126,6 +2164,7 @@ class Location extends DataObject {
 			$this->saveRecordsToInclude();
 			$this->saveSideLoadScopes();
 			$this->saveOverDriveScopes();
+			$this->saveBorrowBoxScopes();
 			$this->saveCombinedResultSections();
 			$this->saveCloudLibraryScopes();
 			$this->saveCoordinates();
@@ -2152,6 +2191,7 @@ class Location extends DataObject {
 			$this->saveRecordsToInclude();
 			$this->saveSideLoadScopes();
 			$this->saveOverDriveScopes();
+			$this->saveBorrowBoxScopes();
 			$this->saveCombinedResultSections();
 			$this->saveCloudLibraryScopes();
 			$this->saveCoordinates();
@@ -2686,6 +2726,33 @@ class Location extends DataObject {
 		if (isset ($this->_locationOverDriveScopes) && is_array($this->_locationOverDriveScopes)) {
 			$this->saveOneToManyOptions($this->_locationOverDriveScopes, 'locationId');
 			unset($this->_libraryOverDriveScopes);
+		}
+	}
+
+	/** @var LocationBorrowBoxScope[] */
+	private $_locationBorrowBoxScopes = null;
+
+	/**
+	 * @return LocationBorrowBoxScope[]
+	 */
+	public function getLocationBorrowBoxScopes(): array {
+		if ($this->_locationBorrowBoxScopes != null) {
+			return $this->_locationBorrowBoxScopes;
+		}
+		$this->_locationBorrowBoxScopes = [];
+		if ($this->locationId > 0) {
+			require_once ROOT_DIR . '/sys/BorrowBox/LocationBorrowBoxScope.php';
+			$locationBorrowBoxScope = new LocationBorrowBoxScope();
+			$locationBorrowBoxScope->locationId = $this->locationId;
+			$this->_locationBorrowBoxScopes = $locationBorrowBoxScope->fetchAll(null, null, false, true);
+		}
+		return $this->_locationBorrowBoxScopes;
+	}
+
+	public function saveBorrowBoxScopes(): void {
+		if (isset ($this->_locationBorrowBoxScopes) && is_array($this->_locationBorrowBoxScopes)) {
+			$this->saveOneToManyOptions($this->_locationBorrowBoxScopes, 'locationId');
+			unset($this->_locationBorrowBoxScopes);
 		}
 	}
 
