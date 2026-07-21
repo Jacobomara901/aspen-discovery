@@ -2867,6 +2867,64 @@ class MyAccount_AJAX extends JSON_Action {
 	}
 
 	/** @noinspection PhpUnused */
+	function getMenuDataBorrowBox() : array {
+		$this->requireLoggedInUser(null, 'You must be logged in to get menu data');
+		global $timer;
+
+		$user = UserAccount::getActiveUserObj();
+		if (!$user->isValidForEContentSource('borrowbox')) {
+			return $this->failureResult(null, 'Invalid for BorrowBox');
+		}
+		require_once ROOT_DIR . '/Drivers/BorrowBoxDriver.php';
+		$driver = new BorrowBoxDriver();
+		$borrowBoxSummary = $driver->getAccountSummary($user);
+		if ($user->getLinkedUsers() != null) {
+			/** @var User $user */
+			$selectedLinkedUser = $this->setFilterLinkedUser();
+			$selectedLinkedUserCheckouts = $this->setFilterLinkedUserCheckouts();
+			$filterLinkedUserSummary = null;
+			if ($selectedLinkedUser) {
+				$filterLinkedUser = new User();
+				$filterLinkedUser->id = $selectedLinkedUser;
+				if ($filterLinkedUser->find(true)) {
+					$filterLinkedUserSummary = $driver->getAccountSummary($filterLinkedUser);
+				}
+			}
+			if ($filterLinkedUserSummary !== null) {
+				$borrowBoxSummary->numAvailableHolds = $filterLinkedUserSummary->numAvailableHolds;
+				$borrowBoxSummary->numUnavailableHolds = $filterLinkedUserSummary->numUnavailableHolds;
+			} elseif (!$selectedLinkedUser) {
+				foreach ($user->getLinkedUsers() as $linkedUser) {
+					$linkedUserSummary = $driver->getAccountSummary($linkedUser);
+					$borrowBoxSummary->numAvailableHolds += $linkedUserSummary->numAvailableHolds;
+					$borrowBoxSummary->numUnavailableHolds += $linkedUserSummary->numUnavailableHolds;
+				}
+			}
+			$filterLinkedUserCheckoutsSummary = null;
+			if ($selectedLinkedUserCheckouts) {
+				$filterLinkedUserCheckouts = new User();
+				$filterLinkedUserCheckouts->id = $selectedLinkedUserCheckouts;
+				if ($filterLinkedUserCheckouts->find(true)) {
+					$filterLinkedUserCheckoutsSummary = $driver->getAccountSummary($filterLinkedUserCheckouts);
+				}
+			}
+			if ($filterLinkedUserCheckoutsSummary !== null) {
+				$borrowBoxSummary->numCheckedOut = $filterLinkedUserCheckoutsSummary->numCheckedOut;
+			} elseif (!$selectedLinkedUserCheckouts) {
+				foreach ($user->getLinkedUsers() as $linkedUser) {
+					$linkedUserSummary = $driver->getAccountSummary($linkedUser);
+					$borrowBoxSummary->numCheckedOut += $linkedUserSummary->numCheckedOut;
+				}
+			}
+		}
+		$timer->logTime("Loaded BorrowBox Summary for User and linked users");
+		return [
+			'success' => true,
+			'summary' => $borrowBoxSummary->toArray(),
+		];
+	}
+
+	/** @noinspection PhpUnused */
 	function getRatingsData() : array {
 		$this->requireLoggedInUser();
 		global $interface;
