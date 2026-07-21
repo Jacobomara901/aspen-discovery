@@ -1015,6 +1015,15 @@ class Library extends DataObject {
 		unset($libraryOverDriveSettingsStructure['libraryId']);
 		unset($libraryOverDriveSettingsStructure['weight']);
 
+		require_once ROOT_DIR . '/sys/BorrowBox/LibraryBorrowBoxScope.php';
+		$libraryBorrowBoxScopeStructure = LibraryBorrowBoxScope::getObjectStructure($context);
+		unset($libraryBorrowBoxScopeStructure['libraryId']);
+
+		require_once ROOT_DIR . '/sys/BorrowBox/LibraryBorrowBoxSettings.php';
+		$libraryBorrowBoxSettingsStructure = LibraryBorrowBoxSettings::getObjectStructure($context);
+		unset($libraryBorrowBoxSettingsStructure['libraryId']);
+		unset($libraryBorrowBoxSettingsStructure['weight']);
+
 		require_once ROOT_DIR . '/sys/AspenLiDA/NotificationSetting.php';
 		$notificationSetting = new NotificationSetting();
 		$notificationSetting->orderBy('name');
@@ -4719,6 +4728,50 @@ class Library extends DataObject {
 					],
 				],
 			],
+			'borrowboxSection' => [
+				'property' => 'borrowboxSection',
+				'type' => 'section',
+				'label' => 'BorrowBox',
+				'hideInLists' => true,
+				'renderAsHeading' => true,
+				'permissions' => ['Library Records included in Catalog'],
+				'properties' => [
+					'borrowBoxSettings' => [
+						'property' => 'borrowBoxSettings',
+						'type' => 'oneToMany',
+						'label' => 'BorrowBox Settings',
+						'description' => 'Additional Settings information for each BorrowBox Collection',
+						'keyThis' => 'libraryId',
+						'keyOther' => 'libraryId',
+						'subObjectType' => 'LibraryBorrowBoxSettings',
+						'structure' => $libraryBorrowBoxSettingsStructure,
+						'sortable' => true,
+						'storeDb' => true,
+						'allowEdit' => true,
+						'canEdit' => true,
+						'canAddNew' => true,
+						'canDelete' => true,
+						'forcesReindex' => true,
+					],
+					'borrowBoxScopes' => [
+						'property' => 'borrowBoxScopes',
+						'type' => 'oneToMany',
+						'label' => 'BorrowBox Scopes (records to include)',
+						'description' => 'The BorrowBox records included for each setting',
+						'keyThis' => 'libraryId',
+						'keyOther' => 'libraryId',
+						'subObjectType' => 'LibraryBorrowBoxScope',
+						'structure' => $libraryBorrowBoxScopeStructure,
+						'sortable' => false,
+						'storeDb' => true,
+						'allowEdit' => true,
+						'canEdit' => true,
+						'canAddNew' => true,
+						'canDelete' => true,
+						'forcesReindex' => true,
+					],
+				],
+			],
 			'palaceProjectSection' => [
 				'property' => 'palaceProjectSection',
 				'type' => 'section',
@@ -5193,6 +5246,9 @@ class Library extends DataObject {
 		if (!array_key_exists('OverDrive', $enabledModules)) {
 			unset($structure['overdriveSection']);
 		}
+		if (!array_key_exists('BorrowBox', $enabledModules)) {
+			unset($structure['borrowboxSection']);
+		}
 		if (!array_key_exists('Hoopla', $enabledModules)) {
 			unset($structure['hooplaSection']);
 		}
@@ -5414,6 +5470,10 @@ class Library extends DataObject {
 			return $this->getLibraryOverDriveScopes();
 		} elseif ($name == 'overDriveSettings') {
 			return $this->getLibraryOverDriveSettings();
+		} elseif ($name == 'borrowBoxSettings') {
+			return $this->getLibraryBorrowBoxSettings();
+		} elseif ($name == 'borrowBoxScopes') {
+			return $this->getLibraryBorrowBoxScopes();
 		} elseif ($name == 'hooplaSettings') {
 			return $this->getLibraryHooplaSettings();
 		} elseif ($name == 'materialsRequestFieldsToDisplay') {
@@ -5452,6 +5512,10 @@ class Library extends DataObject {
 			$this->_libraryOverDriveScopes = $value;
 		}elseif ($name == 'overDriveSettings') {
 			$this->_libraryOverDriveSettings = $value;
+		} elseif ($name == 'borrowBoxSettings') {
+			$this->_libraryBorrowBoxSettings = $value;
+		} elseif ($name == 'borrowBoxScopes') {
+			$this->_libraryBorrowBoxScopes = $value;
 		} elseif ($name == 'hooplaSettings') {
 			$this->_libraryHooplaSettings = $value;
 		} elseif ($name == 'materialsRequestFieldsToDisplay') {
@@ -5526,6 +5590,8 @@ class Library extends DataObject {
 			$this->saveSideLoadScopes();
 			$this->saveOverDriveScopes();
 			$this->saveOverDriveSettings();
+			$this->saveBorrowBoxScopes();
+			$this->saveBorrowBoxSettings();
 			$this->saveHooplaSettings();
 			$this->saveMaterialsRequestFieldsToDisplay();
 			$this->saveMaterialsRequestFormFields();
@@ -5593,6 +5659,8 @@ class Library extends DataObject {
 			$this->saveSideLoadScopes();
 			$this->saveOverDriveScopes();
 			$this->saveOverDriveSettings();
+			$this->saveBorrowBoxScopes();
+			$this->saveBorrowBoxSettings();
 			$this->saveHooplaSettings();
 			$this->saveMaterialsRequestFieldsToDisplay();
 			$this->saveMaterialsRequestFormats();
@@ -6505,6 +6573,68 @@ class Library extends DataObject {
 		if (isset ($this->_libraryOverDriveSettings) && is_array($this->_libraryOverDriveSettings)) {
 			$this->saveOneToManyOptions($this->_libraryOverDriveSettings, 'libraryId');
 			unset($this->_libraryOverDriveSettings);
+		}
+	}
+
+	/** @var LibraryBorrowBoxSettings[] */
+	private $_libraryBorrowBoxSettings = null;
+
+	/**
+	 * @return LibraryBorrowBoxSettings[]
+	 */
+	public function getLibraryBorrowBoxSettings() : array {
+		if ($this->_libraryBorrowBoxSettings != null) {
+			return $this->_libraryBorrowBoxSettings;
+		}
+		$this->_libraryBorrowBoxSettings = [];
+		if ($this->libraryId > 0) {
+			try {
+				require_once ROOT_DIR . '/sys/BorrowBox/LibraryBorrowBoxSettings.php';
+				$libraryBorrowBoxSetting = new LibraryBorrowBoxSettings();
+				$libraryBorrowBoxSetting->libraryId = $this->libraryId;
+				$libraryBorrowBoxSetting->orderBy('weight');
+				$this->_libraryBorrowBoxSettings = $libraryBorrowBoxSetting->fetchAll(null, null, false, true);
+			}catch (Exception) {
+			}
+		}
+		return $this->_libraryBorrowBoxSettings;
+	}
+
+	public function saveBorrowBoxSettings() : void {
+		if (isset ($this->_libraryBorrowBoxSettings) && is_array($this->_libraryBorrowBoxSettings)) {
+			$this->saveOneToManyOptions($this->_libraryBorrowBoxSettings, 'libraryId');
+			unset($this->_libraryBorrowBoxSettings);
+		}
+	}
+
+	/** @var LibraryBorrowBoxScope[] */
+	private $_libraryBorrowBoxScopes = null;
+
+	/**
+	 * @return LibraryBorrowBoxScope[]
+	 */
+	public function getLibraryBorrowBoxScopes() : array {
+		if ($this->_libraryBorrowBoxScopes != null) {
+			return $this->_libraryBorrowBoxScopes;
+		}
+		$this->_libraryBorrowBoxScopes = [];
+		if ($this->libraryId > 0) {
+			try {
+				require_once ROOT_DIR . '/sys/BorrowBox/LibraryBorrowBoxScope.php';
+				$libraryBorrowBoxScope = new LibraryBorrowBoxScope();
+				$libraryBorrowBoxScope->libraryId = $this->libraryId;
+				$libraryBorrowBoxScope->orderBy('weight');
+				$this->_libraryBorrowBoxScopes = $libraryBorrowBoxScope->fetchAll(null, null, false, true);
+			}catch (Exception) {
+			}
+		}
+		return $this->_libraryBorrowBoxScopes;
+	}
+
+	public function saveBorrowBoxScopes() : void {
+		if (isset ($this->_libraryBorrowBoxScopes) && is_array($this->_libraryBorrowBoxScopes)) {
+			$this->saveOneToManyOptions($this->_libraryBorrowBoxScopes, 'libraryId');
+			unset($this->_libraryBorrowBoxScopes);
 		}
 	}
 
