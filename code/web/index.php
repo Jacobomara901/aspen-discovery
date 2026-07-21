@@ -1098,7 +1098,7 @@ function loadModuleActionId() {
 	$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
 	/** IndexingProfile[] $indexingProfiles */ global $indexingProfiles;
 	/** SideLoad[] $sideLoadSettings */ global $sideLoadSettings;
-	$allRecordModules = "OverDrive|GroupedWork|Record|ExternalEContent|Person|Library|Hoopla|CloudLibrary|Files|Axis360|WebBuilder|ProPay|CourseReserves|Springshare|LibraryMarket|Communico|PalaceProject|Assabet|AspenEvents|Series|LocalHop";
+	$allRecordModules = "OverDrive|GroupedWork|Record|ExternalEContent|Person|Library|Hoopla|CloudLibrary|Files|Axis360|WebBuilder|ProPay|CourseReserves|Springshare|LibraryMarket|Communico|PalaceProject|Assabet|AspenEvents|Series|LocalHop|BorrowBox";
 	foreach ($indexingProfiles as $profile) {
 		$allRecordModules .= '|' . $profile->recordUrlComponent;
 	}
