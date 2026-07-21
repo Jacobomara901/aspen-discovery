@@ -73,6 +73,208 @@ class ExtractBorrowBoxInfo {
 		this.settings = settings;
 	}
 
+	int extractBorrowBoxInfo(Ini configIni, String serverName, Connection dbConn, BorrowBoxExtractLogEntry logEntry) {
+		int numProcessed = 0;
+		this.configIni = configIni;
+		this.serverName = serverName;
+		this.dbConn = dbConn;
+		this.logEntry = logEntry;
+
+		long extractStartTime = new Date().getTime();
+
+		try {
+			initBorrowBoxExtract(dbConn);
+
+			if (hasIncompleteApiConfiguration()) {
+				logEntry.addNote("Did not find correct configuration in settings, not loading BorrowBox titles");
+			} else {
+				doFullUpdate = settings.isRunFullUpdate() || settings.getLastUpdateOfChangedRecords() == 0;
+
+				if (doFullUpdate) {
+					logEntry.addNote("Performing full update of BorrowBox catalog");
+				} else {
+					logEntry.addNote("Performing incremental update since " + settings.getLastUpdateOfChangedRecords());
+				}
+				logEntry.saveResults();
+
+				long toTimestamp = loadAvailabilities(doFullUpdate, extractStartTime);
+
+				if (!doFullUpdate && !errorsWhileLoadingProducts) {
+					loadModifications();
+				}
+
+				for (String productToRetry : settings.getProductsToUpdate()) {
+					BorrowBoxRecordInfo recordInfo = allProductsInBorrowBox.get(productToRetry);
+					if (recordInfo != null) {
+						recordInfo.hasChanges = true;
+						continue;
+					}
+					recordInfo = new BorrowBoxRecordInfo();
+					recordInfo.setBorrowboxId(productToRetry);
+					allProductsInBorrowBox.put(productToRetry, recordInfo);
+
+					getProductIdByBorrowBoxIdStmt.setString(1, productToRetry);
+					ResultSet existingRS = getProductIdByBorrowBoxIdStmt.executeQuery();
+					if (existingRS.next()) {
+						recordInfo.setDatabaseId(existingRS.getLong("id"));
+					} else {
+						recordInfo.isNew = true;
+					}
+					existingRS.close();
+					recordInfo.hasChanges = true;
+				}
+
+				int totalToProcess = 0;
+				for (BorrowBoxRecordInfo recordInfo : allProductsInBorrowBox.values()) {
+					if (recordInfo.hasChanges || recordInfo.isNew) {
+						totalToProcess++;
+					}
+				}
+				logEntry.addNote("Found " + totalToProcess + " products to process");
+				logEntry.setNumProducts(totalToProcess);
+				logEntry.saveResults();
+
+				List<BorrowBoxRecordInfo> recordsNeedingMetadata = new ArrayList<>();
+				for (BorrowBoxRecordInfo recordInfo : allProductsInBorrowBox.values()) {
+					if (recordInfo.hasChanges || recordInfo.isNew) {
+						recordsNeedingMetadata.add(recordInfo);
+					}
+				}
+
+				for (int i = 0; i < recordsNeedingMetadata.size(); i += 25) {
+					int end = Math.min(i + 25, recordsNeedingMetadata.size());
+					List<BorrowBoxRecordInfo> batch = recordsNeedingMetadata.subList(i, end);
+					fetchAndStoreMetadataBatch(batch);
+
+					if (end % 100 == 0 || end == recordsNeedingMetadata.size()) {
+						logEntry.saveResults();
+					}
+				}
+
+				for (BorrowBoxRecordInfo recordInfo : recordsNeedingMetadata) {
+					try {
+						if (recordInfo.getDatabaseId() != -1 && !recordInfo.removedFromCollection) {
+							String groupedWorkId = getRecordGroupingProcessor().processBorrowBoxRecord(recordInfo.getBorrowboxId());
+							if (groupedWorkId != null) {
+								getGroupedWorkIndexer().processGroupedWork(groupedWorkId);
+							}
+							if (recordInfo.isNew) {
+								logEntry.incAdded();
+							} else {
+								logEntry.incUpdated();
+							}
+						}
+					} catch (Exception e) {
+						logEntry.incErrors("Error processing record " + recordInfo.getBorrowboxId(), e);
+					}
+					numProcessed++;
+					if (numProcessed % 100 == 0) {
+						logEntry.addNote("Processed " + numProcessed + " records");
+						logEntry.saveResults();
+					}
+				}
+
+				if (doFullUpdate && !errorsWhileLoadingProducts) {
+					handleDeletedRecords(extractStartTime);
+				}
+
+				processRecordsToReload(logEntry);
+
+				PreparedStatement saveProductsToUpdateStmt = dbConn.prepareStatement("UPDATE borrowbox_settings set productsToUpdate = ? WHERE id = ?");
+				saveProductsToUpdateStmt.setString(1, settings.getProductsToUpdateNextTimeAsString());
+				saveProductsToUpdateStmt.setLong(2, settings.getId());
+				saveProductsToUpdateStmt.executeUpdate();
+
+				if (!errorsWhileLoadingProducts && !logEntry.hasErrors()) {
+					long timestampToSave = (toTimestamp > 0) ? toTimestamp : (extractStartTime / 1000);
+					PreparedStatement updateExtractTime;
+					if (doFullUpdate) {
+						updateExtractTime = dbConn.prepareStatement("UPDATE borrowbox_settings set runFullUpdate = 0, lastUpdateOfAllRecords = ?, lastUpdateOfChangedRecords = ? WHERE id = ?");
+						updateExtractTime.setLong(1, timestampToSave);
+						updateExtractTime.setLong(2, timestampToSave);
+						updateExtractTime.setLong(3, settings.getId());
+					} else {
+						updateExtractTime = dbConn.prepareStatement("UPDATE borrowbox_settings set runFullUpdate = 0, lastUpdateOfChangedRecords = ? WHERE id = ?");
+						updateExtractTime.setLong(1, timestampToSave);
+						updateExtractTime.setLong(2, settings.getId());
+					}
+					updateExtractTime.executeUpdate();
+					logger.debug("Setting last extract time to " + timestampToSave);
+				} else {
+					logEntry.addNote("Not setting last extract time since there were problems extracting products from the API");
+				}
+			}
+
+			if (recordGroupingProcessorSingleton != null) {
+				recordGroupingProcessorSingleton.close();
+				recordGroupingProcessorSingleton = null;
+			}
+			if (groupedWorkIndexer != null) {
+				groupedWorkIndexer.finishIndexingFromExtract(logEntry);
+				groupedWorkIndexer.close();
+				groupedWorkIndexer = null;
+			}
+		} catch (SQLException e) {
+			logEntry.incErrors("Error initializing BorrowBox extraction", e);
+		}
+		return numProcessed;
+	}
+
+	int processSingleWork(String singleWorkId, Ini configIni, String serverName, Connection dbConn, BorrowBoxExtractLogEntry logEntry) {
+		int numChanges = 0;
+		this.configIni = configIni;
+		this.serverName = serverName;
+		this.dbConn = dbConn;
+		this.logEntry = logEntry;
+
+		try {
+			initBorrowBoxExtract(dbConn);
+
+			if (hasIncompleteApiConfiguration()) {
+				logEntry.addNote("Did not find correct configuration in settings, not loading BorrowBox titles");
+			} else {
+				List<BorrowBoxRecordInfo> singleBatch = new ArrayList<>();
+				BorrowBoxRecordInfo recordInfo = new BorrowBoxRecordInfo();
+				recordInfo.setBorrowboxId(singleWorkId);
+				recordInfo.hasChanges = true;
+
+				getProductIdByBorrowBoxIdStmt.setString(1, singleWorkId);
+				ResultSet existingRS = getProductIdByBorrowBoxIdStmt.executeQuery();
+				if (existingRS.next()) {
+					recordInfo.setDatabaseId(existingRS.getLong("id"));
+				} else {
+					recordInfo.isNew = true;
+				}
+				existingRS.close();
+
+				singleBatch.add(recordInfo);
+				fetchAndStoreMetadataBatch(singleBatch);
+				updateAvailabilityForSingleProduct(recordInfo);
+
+				if (recordInfo.getDatabaseId() != -1) {
+					String groupedWorkId = getRecordGroupingProcessor().processBorrowBoxRecord(recordInfo.getBorrowboxId());
+					if (groupedWorkId != null) {
+						getGroupedWorkIndexer().processGroupedWork(groupedWorkId);
+					}
+					numChanges++;
+				}
+			}
+
+			if (recordGroupingProcessorSingleton != null) {
+				recordGroupingProcessorSingleton.close();
+				recordGroupingProcessorSingleton = null;
+			}
+			if (groupedWorkIndexer != null) {
+				groupedWorkIndexer.finishIndexingFromExtract(logEntry);
+				groupedWorkIndexer.close();
+				groupedWorkIndexer = null;
+			}
+		} catch (SQLException e) {
+			logEntry.incErrors("Error initializing BorrowBox extraction", e);
+		}
+		return numChanges;
+	}
+
 	/**
 	 * Load availabilities from the BorrowBox API.
 	 * Full load: GET /v1/availabilities (no from param, excludes UNAVAILABLE)
@@ -642,6 +844,105 @@ class ExtractBorrowBoxInfo {
 			}
 		} catch (Exception e) {
 			logEntry.incErrors("Error updating availability for " + recordInfo.getBorrowboxId(), e);
+		}
+	}
+
+	/**
+	 * Handle deletion of records that were not seen during a full update.
+	 */
+	private void handleDeletedRecords(long extractStartTime) {
+		try {
+			int totalRecordsToDelete = 0;
+			getNumDeletedProductsStmt.setLong(1, settings.getId());
+			getNumDeletedProductsStmt.setLong(2, extractStartTime / 1000);
+			ResultSet numDeletedRS = getNumDeletedProductsStmt.executeQuery();
+			if (numDeletedRS.next()) {
+				totalRecordsToDelete = numDeletedRS.getInt(1);
+			}
+			numDeletedRS.close();
+
+			int totalProducts = 0;
+			getTotalProductsStmt.setLong(1, settings.getId());
+			ResultSet totalRS = getTotalProductsStmt.executeQuery();
+			if (totalRS.next()) {
+				totalProducts = totalRS.getInt(1);
+			}
+			totalRS.close();
+
+			if (totalRecordsToDelete > 0 && (settings.isAllowLargeDeletes() || (totalRecordsToDelete < 500 && totalProducts > 0 && (((float) totalRecordsToDelete / totalProducts) < .05)))) {
+				int numDeleted = 0;
+				getDeletedProductsStmt.setLong(1, settings.getId());
+				getDeletedProductsStmt.setLong(2, extractStartTime / 1000);
+				ResultSet deletedRS = getDeletedProductsStmt.executeQuery();
+				while (deletedRS.next()) {
+					String borrowboxId = deletedRS.getString("borrowboxId");
+					long aspenId = deletedRS.getLong("id");
+					deleteProduct(borrowboxId, aspenId);
+					numDeleted++;
+					if (numDeleted % 100 == 0) {
+						logEntry.saveResults();
+					}
+				}
+				deletedRS.close();
+				logger.info("Deleted " + numDeleted + " records that no longer exist");
+			} else if (!settings.isAllowLargeDeletes() && totalRecordsToDelete >= 500) {
+				logEntry.incErrors("There were more than 500 records to delete (" + totalRecordsToDelete + "), not deleting records");
+			} else if (!settings.isAllowLargeDeletes() && totalProducts > 0 && (((float) totalRecordsToDelete / totalProducts) >= .05)) {
+				logEntry.incErrors("More than 5% of the collection was marked for deletion (" + totalRecordsToDelete + " of " + totalProducts + "), not deleting records");
+			}
+		} catch (SQLException e) {
+			logEntry.incErrors("Error handling deleted records", e);
+		}
+	}
+
+	private void deleteProduct(String borrowboxId, long aspenId) {
+		try {
+			long curTime = new Date().getTime() / 1000;
+			deleteProductStmt.setLong(1, curTime);
+			deleteProductStmt.setLong(2, aspenId);
+			deleteProductStmt.executeUpdate();
+
+			deleteAvailabilityForProductStmt.setLong(1, aspenId);
+			deleteAvailabilityForProductStmt.setLong(2, settings.getId());
+			deleteAvailabilityForProductStmt.executeUpdate();
+			logEntry.incDeleted();
+
+			RemoveRecordFromWorkResult result = getRecordGroupingProcessor().removeRecordFromGroupedWork("borrowbox", borrowboxId);
+			if (result.reindexWork) {
+				getGroupedWorkIndexer().processGroupedWork(result.permanentId);
+			} else if (result.deleteWork) {
+				getGroupedWorkIndexer().deleteRecord(result.permanentId, result.groupedWorkId);
+			}
+		} catch (SQLException e) {
+			logEntry.incErrors("Error deleting BorrowBox product " + aspenId, e);
+		}
+	}
+
+	private void processRecordsToReload(BorrowBoxExtractLogEntry logEntry) {
+		try {
+			PreparedStatement getRecordsToReloadStmt = dbConn.prepareStatement("SELECT * from record_identifiers_to_reload WHERE processed = 0 and type='borrowbox'", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			PreparedStatement markRecordToReloadAsProcessedStmt = dbConn.prepareStatement("UPDATE record_identifiers_to_reload SET processed = 1 where id = ?");
+
+			ResultSet getRecordsToReloadRS = getRecordsToReloadStmt.executeQuery();
+			int numRecordsToReloadProcessed = 0;
+			while (getRecordsToReloadRS.next()) {
+				long recordToReloadId = getRecordsToReloadRS.getLong("id");
+				String borrowboxId = getRecordsToReloadRS.getString("identifier");
+				String groupedWorkId = getRecordGroupingProcessor().processBorrowBoxRecord(borrowboxId);
+				if (groupedWorkId != null) {
+					getGroupedWorkIndexer().processGroupedWork(groupedWorkId);
+				}
+
+				markRecordToReloadAsProcessedStmt.setLong(1, recordToReloadId);
+				markRecordToReloadAsProcessedStmt.executeUpdate();
+				numRecordsToReloadProcessed++;
+			}
+			if (numRecordsToReloadProcessed > 0) {
+				logEntry.addNote("Regrouped " + numRecordsToReloadProcessed + " records marked for reprocessing");
+			}
+			getRecordsToReloadRS.close();
+		} catch (Exception e) {
+			logEntry.incErrors("Error processing records to reload", e);
 		}
 	}
 
