@@ -1,7 +1,9 @@
 <?php /** @noinspection PhpMissingFieldTypeInspection */
 
 
-class BorrowBoxRecordUsage extends DataObject {
+require_once ROOT_DIR . '/sys/AbstractUsage.php';
+
+class BorrowBoxRecordUsage extends AbstractUsage {
 	public $__table = 'borrowbox_record_usage';
 	public $id;
 	public $instance;
