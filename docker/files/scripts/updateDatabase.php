@@ -62,39 +62,8 @@ function updateCssForAllThemes() : array {
 
 
 function getDatabaseUpdates(): array {
-	require_once ROOT_DIR . '/sys/DBMaintenance/library_location_updates.php';
-	$library_location_updates = getLibraryLocationUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/summon_updates.php';
-	$summonUpdates = getSummonUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/cloud_library_updates.php';
-	$cloudLibraryUpdates = getCloudLibraryUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/grapes_web_builder_updates.php';
-	$grapesWebBuilderUpdates = getGrapesWebBuilderUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/heycentric_updates.php';
-	$heycentricUpdates = getHeyCentricUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/community_engagement_updates.php';
-	$communityEngagementUpdates = getCommunityEngagementUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/talpa_updates.php';
-	$talpaUpdates = getTalpaUpdates();
-	require_once ROOT_DIR . '/sys/DBMaintenance/gale_updates.php';
-	$galeUpdates = getGaleUpdates();
-	
-	$baseUpdates = array_merge($library_location_updates, $summonUpdates, $cloudLibraryUpdates, $grapesWebBuilderUpdates, $communityEngagementUpdates, $talpaUpdates, $heycentricUpdates, $galeUpdates);
-	//Get version updates
-	require_once ROOT_DIR . '/sys/Utils/StringUtils.php';
-	$versionUpdates = scandir(ROOT_DIR . '/sys/DBMaintenance/version_updates', SCANDIR_SORT_ASCENDING);
-	foreach ($versionUpdates as $updateFile) {
-		if (is_file(ROOT_DIR . '/sys/DBMaintenance/version_updates/' . $updateFile)) {
-			if (StringUtils::endsWith($updateFile, '.php')) {
-				include_once ROOT_DIR . "/sys/DBMaintenance/version_updates/$updateFile";
-				$version = substr($updateFile, 0, strrpos($updateFile, '.'));
-				$updateFunction = 'getUpdates' . str_replace('.', '_', $version);
-				$updates = $updateFunction();
-				$baseUpdates = array_merge($baseUpdates, $updates);
-			}
-		}
-	}
-	return $baseUpdates;
+	require_once ROOT_DIR . '/sys/DBMaintenance/all_updates.php';
+	return getAllDatabaseUpdates();
 }
 
 function getPendingDatabaseUpdates() : array {
