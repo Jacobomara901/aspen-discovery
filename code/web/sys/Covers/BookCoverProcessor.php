@@ -607,64 +607,19 @@ class BookCoverProcessor {
 	}
 
 	private function getCoverFromProvider() : bool {
-		// Update to allow retrieval of covers based on upc
-		if ((!is_null($this->isn) || !is_null($this->upc) || !is_null($this->issn)) && !$this->bookCoverInfo->getDisallowThirdPartyCover()) {
-			$this->log("Looking for picture based on isbn and upc.", Logger::LOG_NOTICE);
-
-			//TODO: Allow these to be sorted
-			require_once ROOT_DIR . '/sys/Enrichment/SyndeticsSetting.php';
-			global $library;
-			$syndeticsSettings = new SyndeticsSetting();
-			$syndeticsSettings->id = $library->syndeticsSettingId;
-			if ($syndeticsSettings->find(true)) {
-				if ($this->syndetics($syndeticsSettings->syndeticsKey)) {
-					return true;
-				}
-			}
-
-			require_once ROOT_DIR . '/sys/Enrichment/ChiliFreshSetting.php';
-			$chiliFreshSettings = new ChiliFreshSetting();
-			if ($chiliFreshSettings->find(true)) {
-				if ($chiliFreshSettings->enabled) {
-					if ($this->chiliFresh($chiliFreshSettings->genericArtCode)) {
-						return true;
-					}
-				}
-			}
-
-			require_once ROOT_DIR . '/sys/Enrichment/ContentCafeSetting.php';
-			$contentCafeSettings = new ContentCafeSetting();
-			if ($contentCafeSettings->find(true)) {
-				if ($contentCafeSettings->enabled) {
-					if ($this->contentCafe($contentCafeSettings)) {
-						return true;
-					}
-				}
-			}
-
-			require_once ROOT_DIR . '/sys/Enrichment/LoralSetting.php';
-			$loralSettings = new LoralSetting();
-			if ($loralSettings->find(true)) {
-				if ($loralSettings->enabled) {
-					if ($this->loral($loralSettings)) {
-						return true;
-					}
-				}
-			}
-
-			if ($this->tryBds()) {
-				return true;
-			}
-
-			require_once ROOT_DIR . '/sys/Enrichment/CoceServerSetting.php';
-			$coceServerSettings = new CoceServerSetting();
-			if ($coceServerSettings->find(true)) {
-				if ($this->coce($coceServerSettings)) {
-					return true;
-				}
-			}
+		$hasIdentifier = !is_null($this->isn) || !is_null($this->upc) || !is_null($this->issn);
+		$canFetch = $hasIdentifier && !$this->bookCoverInfo->getDisallowThirdPartyCover();
+		if (!$canFetch) {
+			return false;
 		}
-		return false;
+		$this->log("Looking for picture based on isbn and upc.", Logger::LOG_NOTICE);
+
+		return $this->trySyndetics()
+			|| $this->tryChiliFresh()
+			|| $this->tryContentCafe()
+			|| $this->tryLoral()
+			|| $this->tryBds()
+			|| $this->tryCoce();
 	}
 
 	private function getCoverFromMarc(File_MARC_Record|false|null $marcRecord = null) : bool {
