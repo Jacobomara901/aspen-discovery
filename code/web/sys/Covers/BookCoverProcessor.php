@@ -1131,6 +1131,47 @@ class BookCoverProcessor {
 		return false;
 	}
 
+	private function trySyndetics() : bool {
+		global $library;
+		require_once ROOT_DIR . '/sys/Enrichment/SyndeticsSetting.php';
+		$settings = new SyndeticsSetting();
+		$settings->id = $library->syndeticsSettingId;
+		if (!$settings->find(true)) {
+			return false;
+		}
+		return $this->syndetics($settings->syndeticsKey);
+	}
+
+	private function tryChiliFresh() : bool {
+		require_once ROOT_DIR . '/sys/Enrichment/ChiliFreshSetting.php';
+		$settings = new ChiliFreshSetting();
+		$configured = $settings->find(true) && $settings->enabled;
+		if (!$configured) {
+			return false;
+		}
+		return $this->chiliFresh($settings->genericArtCode);
+	}
+
+	private function tryContentCafe() : bool {
+		require_once ROOT_DIR . '/sys/Enrichment/ContentCafeSetting.php';
+		$settings = new ContentCafeSetting();
+		$configured = $settings->find(true) && $settings->enabled;
+		if (!$configured) {
+			return false;
+		}
+		return $this->contentCafe($settings);
+	}
+
+	private function tryLoral() : bool {
+		require_once ROOT_DIR . '/sys/Enrichment/LoralSetting.php';
+		$settings = new LoralSetting();
+		$configured = $settings->find(true) && $settings->enabled;
+		if (!$configured) {
+			return false;
+		}
+		return $this->loral($settings);
+	}
+
 	private function tryBds() : bool {
 		global $library;
 		require_once ROOT_DIR . '/sys/Enrichment/BDSSetting.php';
@@ -1141,6 +1182,15 @@ class BookCoverProcessor {
 			return false;
 		}
 		return $this->bds($settings);
+	}
+
+	private function tryCoce() : bool {
+		require_once ROOT_DIR . '/sys/Enrichment/CoceServerSetting.php';
+		$settings = new CoceServerSetting();
+		if (!$settings->find(true)) {
+			return false;
+		}
+		return $this->coce($settings);
 	}
 
 	function bds(BDSSetting $settings) : bool {
