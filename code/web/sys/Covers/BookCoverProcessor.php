@@ -1016,74 +1016,40 @@ class BookCoverProcessor {
 	}
 
 	/**
-	 * Retrieve a Content Cafe cover.
-	 *
-	 * @param ContentCafeSetting $settings
-	 *
-	 * @return bool      True if image displayed, false otherwise.
+	 * Try fetching a cover from $provider by appending each available identifier
+	 * (ISBN → UPC → ISSN) to $baseUrl and stopping on first success.
 	 */
+	private function fetchCoverByIdentifiers(string $provider, string $baseUrl, ?string $authentication = null) : bool {
+		foreach ([$this->isn, $this->upc, $this->issn] as $identifier) {
+			if (empty($identifier)) {
+				continue;
+			}
+			if ($this->processImageURL($provider, $baseUrl . $identifier, true, $authentication)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	function contentCafe(ContentCafeSetting $settings) : bool {
 		$size = match ($this->size) {
 			'medium' => 'M',
 			'large' => 'L',
 			default => 'S',
 		};
-		$url = 'https://contentcafe2.btol.com';
-		$url .= "/ContentCafe/Jacket.aspx?UserID=$settings->contentCafeId&Password=$settings->pwd&Return=1&Type=$size&erroroverride=1&Value=";
-
-		if (!empty($this->isn)) {
-			if ($this->processImageURL('contentCafe', $url . $this->isn)) {
-				return true;
-			}
-		}
-		if (!empty($this->upc)) {
-			if ($this->processImageURL('contentCafe', $url . $this->upc)) {
-				return true;
-			}
-		}
-		if (!empty($this->issn)) {
-			if ($this->processImageURL('contentCafe', $url . $this->issn)) {
-				return true;
-			}
-		}
-
-		return false;
+		$url = "https://contentcafe2.btol.com/ContentCafe/Jacket.aspx?UserID=$settings->contentCafeId&Password=$settings->pwd&Return=1&Type=$size&erroroverride=1&Value=";
+		return $this->fetchCoverByIdentifiers('contentCafe', $url);
 	}
 
-	/**
-	 * Retrieve a Content Cafe cover.
-	 *
-	 * @param LoralSetting $settings
-	 *
-	 * @return bool      True if image displayed, false otherwise.
-	 */
 	function loral(LoralSetting $settings) : bool {
 		$size = match ($this->size) {
 			'medium' => 'medium',
 			'large' => 'large',
 			default => 'small',
 		};
-		$url = $settings->loralUrl;
+		$url = $settings->loralUrl . "/Enrichment/Cover?size=$size&isn=";
 		$authentication = base64_encode($settings->loralId . ':' . $settings->password);
-		$url .= "/Enrichment/Cover?size=$size&isn=";
-
-		if (!empty($this->isn)) {
-			if ($this->processImageURL('loral', $url . $this->isn, true, $authentication)) {
-				return true;
-			}
-		}
-		if (!empty($this->upc)) {
-			if ($this->processImageURL('loral', $url . $this->upc, true, $authentication)) {
-				return true;
-			}
-		}
-		if (!empty($this->issn)) {
-			if ($this->processImageURL('loral', $url . $this->issn, true, $authentication)) {
-				return true;
-			}
-		}
-
-		return false;
+		return $this->fetchCoverByIdentifiers('loral', $url, $authentication);
 	}
 
 	private function trySyndetics() : bool {
