@@ -128,13 +128,6 @@ function getUpdates26_09_00(): array {
 				"ALTER TABLE themes ADD COLUMN fontSize VARCHAR(10) NOT NULL DEFAULT 'small'",
 			]
 		], // theme_font_size
-		'regenerate_themes' => [
-			'title' => 'Regenerate Themes',
-			'description' => 'Regenerate themes to accommodate new font size settings.',
-			'sql' => [
-				'regenerateThemeCssForFontSize',
-			]
-		], // theme_font_size
 		'user_preferred_text_size' => [
 			'title' => 'User Preferred Text Size',
 			'description' => 'Allow a user to override the text size of the applied theme',
